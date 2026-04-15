@@ -40,6 +40,142 @@ const WEAPONS = [
 ];
 
 const WEAPON_BY_ID = Object.fromEntries(WEAPONS.map((w) => [w.id, w]));
+const WORLD_RADIUS = 12;
+const MAP_OBSTACLES = [
+  { id: 'crate-red', type: 'box', x: 5, z: 5, width: 2, depth: 2, color: '#ff7575' },
+  { id: 'tower-green', type: 'box', x: 0, z: -6, width: 2.2, depth: 2.2, color: '#35d07f' },
+  { id: 'orb-cyan', type: 'circle', x: -3.5, z: -9, radius: 1.2, color: '#8cd9ff' },
+  { id: 'block-blue', type: 'box', x: -6, z: -3, width: 1.8, depth: 2.2, color: '#7f9fc9' },
+];
+const MULTIPLAYER_PREVIEW_PLAYERS = [
+  { id: 'ally-1', name: 'Lima', x: 2.8, z: -1.5, color: '#66d9ff' },
+  { id: 'ally-2', name: 'Kiwi', x: -4.2, z: 4.6, color: '#ffd166' },
+];
+const RADAR_TARGETS = MAP_OBSTACLES.map((obs) => ({ id: obs.id, x: obs.x, z: obs.z, color: obs.color }));
+
+function createGroundTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#11161d';
+  ctx.fillRect(0, 0, size, size);
+
+  for (let i = 0; i < 580; i += 1) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const alpha = 0.08 + Math.random() * 0.22;
+    ctx.fillStyle = `rgba(210, 225, 238, ${alpha})`;
+    ctx.fillRect(x, y, 1 + Math.random() * 1.4, 1 + Math.random() * 1.4);
+  }
+
+  ctx.strokeStyle = 'rgba(120, 142, 164, 0.20)';
+  ctx.lineWidth = 2;
+  for (let y = 0; y <= size; y += 32) {
+    ctx.beginPath();
+    ctx.moveTo(0, y + 0.5);
+    ctx.lineTo(size, y + 0.5);
+    ctx.stroke();
+  }
+  for (let x = 0; x <= size; x += 32) {
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, 0);
+    ctx.lineTo(x + 0.5, size);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(14, 14);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createObstacleTexture(base, accent) {
+  const size = 192;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.strokeStyle = `${accent}66`;
+  ctx.lineWidth = 3;
+  for (let i = -size; i < size * 2; i += 22) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i - size, size);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = `${accent}44`;
+  for (let i = 0; i < 26; i += 1) {
+    ctx.fillRect(Math.random() * size, Math.random() * size, 4 + Math.random() * 7, 2 + Math.random() * 4);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2, 2);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createOrbTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const grad = ctx.createRadialGradient(size * 0.35, size * 0.3, size * 0.08, size * 0.5, size * 0.5, size * 0.7);
+  grad.addColorStop(0, '#f2fbff');
+  grad.addColorStop(0.35, '#8cd9ff');
+  grad.addColorStop(1, '#29506f');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  for (let i = 0; i < 90; i += 1) {
+    ctx.fillStyle = `rgba(255,255,255,${0.08 + Math.random() * 0.26})`;
+    ctx.beginPath();
+    ctx.arc(Math.random() * size, Math.random() * size, 1 + Math.random() * 2.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createArenaPaintTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const gradient = ctx.createRadialGradient(size * 0.5, size * 0.5, size * 0.08, size * 0.5, size * 0.5, size * 0.56);
+  gradient.addColorStop(0, 'rgba(240, 230, 180, 0.9)');
+  gradient.addColorStop(0.46, 'rgba(202, 171, 109, 0.78)');
+  gradient.addColorStop(1, 'rgba(112, 95, 72, 0.0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.strokeStyle = 'rgba(248, 231, 190, 0.28)';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(size * 0.5, size * 0.5, size * 0.34, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
 
 function useInput(enabled) {
   const [input, setInput] = useState({
@@ -333,24 +469,98 @@ function ShootingSystem({ enabled, weapon, onSpawnBullet, onShot }) {
   return null;
 }
 
-function MiniMap({ playerPosRef }) {
+function MiniMapRadar({ playerPosRef }) {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setTick((n) => (n + 1) % 10000);
+    }, 80);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const px = playerPosRef.current.x;
+  const pz = playerPosRef.current.z;
+
+  const radarSize = 116;
+  const radarCenter = radarSize / 2;
+
+  const toRadar = (x, z) => {
+    const relX = x - px;
+    const relZ = z - pz;
+    const range = WORLD_RADIUS * 1.35;
+    const clampedX = THREE.MathUtils.clamp(relX / range, -1, 1);
+    const clampedZ = THREE.MathUtils.clamp(relZ / range, -1, 1);
+    const radius = radarSize * 0.42;
+    return {
+      left: radarCenter + clampedX * radius,
+      top: radarCenter + clampedZ * radius,
+    };
+  };
+
   return (
     <div
       style={{
         position: 'absolute',
         right: 14,
-        bottom: 14,
+        top: 14,
         zIndex: 10,
-        background: 'rgba(6, 12, 20, 0.72)',
-        border: '1px solid #355a46',
-        borderRadius: 8,
-        padding: '8px 10px',
-        color: '#8ae3a6',
-        fontFamily: 'monospace',
-        fontSize: 12,
+        display: 'block',
       }}
     >
-      X: {playerPosRef.current.x.toFixed(2)} | Z: {playerPosRef.current.z.toFixed(2)}
+      <div
+        style={{
+          width: radarSize,
+          background: 'rgba(7, 13, 22, 0.78)',
+          border: '1px solid rgba(126, 173, 255, 0.7)',
+          borderRadius: 10,
+          padding: 8,
+          color: '#cce5ff',
+          boxShadow: '0 8px 20px rgba(0, 0, 0, 0.35)',
+        }}
+      >
+        <div style={{ fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 6 }}>Radar</div>
+        <div style={{ position: 'relative', width: radarSize, height: radarSize, borderRadius: '50%', overflow: 'hidden', background: 'radial-gradient(circle, rgba(88,123,173,0.2), rgba(10,16,24,0.95))', border: '1px solid rgba(157, 194, 255, 0.4)' }}>
+          <div style={{ position: 'absolute', inset: '14%', borderRadius: '50%', border: '1px solid rgba(197, 221, 255, 0.25)' }} />
+          <div style={{ position: 'absolute', inset: '30%', borderRadius: '50%', border: '1px solid rgba(197, 221, 255, 0.2)' }} />
+          <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.2)', transform: 'translateX(-50%)' }} />
+          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.2)', transform: 'translateY(-50%)' }} />
+
+          {RADAR_TARGETS.map((target) => {
+            const pos = toRadar(target.x, target.z);
+            return (
+              <div
+                key={`radar-${target.id}`}
+                style={{
+                  position: 'absolute',
+                  left: pos.left,
+                  top: pos.top,
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: target.color,
+                  boxShadow: `0 0 8px ${target.color}`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+              />
+            );
+          })}
+
+          <div
+            style={{
+              position: 'absolute',
+              left: radarCenter,
+              top: radarCenter,
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              background: '#ffffff',
+              border: '2px solid #49b3ff',
+              transform: 'translate(-50%, -50%)',
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -454,7 +664,7 @@ function Overlay({
         </div>
       )}
 
-      {!paused && <MiniMap playerPosRef={playerPosRef} />}
+      {!paused && <MiniMapRadar playerPosRef={playerPosRef} />}
 
       {paused && (
         <div className="pause-menu" style={{ zIndex: 25 }}>
@@ -506,10 +716,27 @@ export default function App() {
   const shotSignalRef = useRef(0);
 
   const weapon = WEAPON_BY_ID[weaponId] ?? WEAPONS[0];
+  const groundTexture = useMemo(() => createGroundTexture(), []);
+  const obstacleTextureRed = useMemo(() => createObstacleTexture('#45272b', '#ff9a9a'), []);
+  const obstacleTextureGreen = useMemo(() => createObstacleTexture('#1f3b2a', '#8cf2a9'), []);
+  const obstacleTextureBlue = useMemo(() => createObstacleTexture('#2b3548', '#b7cff6'), []);
+  const orbTexture = useMemo(() => createOrbTexture(), []);
+  const arenaPaintTexture = useMemo(() => createArenaPaintTexture(), []);
 
   useEffect(() => {
     ammoRef.current = ammo;
   }, [ammo]);
+
+  useEffect(() => {
+    return () => {
+      groundTexture.dispose();
+      obstacleTextureRed.dispose();
+      obstacleTextureGreen.dispose();
+      obstacleTextureBlue.dispose();
+      orbTexture.dispose();
+      arenaPaintTexture.dispose();
+    };
+  }, [groundTexture, obstacleTextureRed, obstacleTextureGreen, obstacleTextureBlue, orbTexture, arenaPaintTexture]);
 
   const lockPointer = () => {
     controlsRef.current?.lock();
@@ -685,29 +912,44 @@ export default function App() {
 
           <Grid infiniteGrid fadeDistance={50} cellColor="#444" sectionColor="#666" />
 
+          <mesh position={[0, 1.8, 0]}>
+            <cylinderGeometry args={[WORLD_RADIUS + 0.7, WORLD_RADIUS + 0.7, 3.6, 56, 1, true]} />
+            <meshStandardMaterial color="#354860" roughness={0.78} metalness={0.22} side={THREE.DoubleSide} />
+          </mesh>
+
+          <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[WORLD_RADIUS * 0.78, WORLD_RADIUS * 0.95, 64]} />
+            <meshStandardMaterial map={arenaPaintTexture} color="#d6b36f" transparent opacity={0.76} roughness={0.9} metalness={0.02} />
+          </mesh>
+
+          <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[WORLD_RADIUS * 0.96, WORLD_RADIUS, 64]} />
+            <meshStandardMaterial color="#f0d089" emissive="#7a6230" emissiveIntensity={0.2} roughness={0.76} metalness={0.05} />
+          </mesh>
+
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[100, 100]} />
-            <meshStandardMaterial color="#111" />
+            <meshStandardMaterial map={groundTexture} color="#6d7f91" roughness={0.92} metalness={0.03} />
           </mesh>
 
           <mesh position={[5, 1, 5]} castShadow>
             <boxGeometry args={[2, 2, 2]} />
-            <meshStandardMaterial color="red" />
+            <meshStandardMaterial map={obstacleTextureRed} color="#ff8a8a" roughness={0.78} metalness={0.08} />
           </mesh>
 
           <mesh position={[0, 1.5, -6]} castShadow>
             <boxGeometry args={[2.2, 3, 2.2]} />
-            <meshStandardMaterial color="#35d07f" emissive="#1e5a38" emissiveIntensity={0.35} />
+            <meshStandardMaterial map={obstacleTextureGreen} color="#7de9a7" emissive="#1e5a38" emissiveIntensity={0.22} roughness={0.7} metalness={0.1} />
           </mesh>
 
           <mesh position={[-3.5, 2.2, -9]}>
             <sphereGeometry args={[1.2, 20, 20]} />
-            <meshStandardMaterial color="#8cd9ff" emissive="#2a4f6b" emissiveIntensity={0.3} />
+            <meshStandardMaterial map={orbTexture} color="#9ce0ff" emissive="#2a4f6b" emissiveIntensity={0.2} roughness={0.32} metalness={0.25} />
           </mesh>
 
           <mesh position={[-6, 1.5, -3]} castShadow>
             <boxGeometry args={[1.8, 3, 2.2]} />
-            <meshStandardMaterial color="#5d6f90" />
+            <meshStandardMaterial map={obstacleTextureBlue} color="#95abd0" roughness={0.74} metalness={0.14} />
           </mesh>
 
           {play && (
