@@ -567,7 +567,6 @@ function BulletLayer({ bullets, bots, playerPosRef, onExpireMany, onBotHits, onD
     <>
       {bullets.map((bullet) => (
         <mesh
-          key={bullet.id}
           ref={(node) => {
             if (node) refs.current.set(bullet.id, node);
             else refs.current.delete(bullet.id);
@@ -1174,6 +1173,8 @@ function Overlay({
   playerName,
   weapon,
   ammo,
+  remotePlayers,
+  socketId,
   onStart,
   onContinue,
   onBackToStart,
@@ -1281,7 +1282,8 @@ function Overlay({
         style={{
           position: 'absolute',
           top: 12,
-          left: 12,
+          left: selectedMode === 'multiplayer' ? '50%' : 12,
+          transform: selectedMode === 'multiplayer' ? 'translateX(-50%)' : 'none',
           zIndex: 10,
           color: '#f2fff4',
           background: 'rgba(8, 14, 20, 0.65)',
@@ -1294,14 +1296,45 @@ function Overlay({
         {playerName} | {weapon.name} | Municion: {ammo} | Vida: {playerHealth} | Bots restantes: {botsRemaining}
       </div>
 
-      <div style={{ position: 'absolute', top: 45, left: 12, zIndex: 10, width: 240, height: 14, borderRadius: 999, background: 'rgba(30, 42, 60, 0.85)', border: '1px solid rgba(160, 190, 220, 0.4)', overflow: 'hidden' }}>
-        <div style={{ width: `${Math.max(0, Math.min(100, playerHealth))}%`, height: '100%', background: playerHealth > 55 ? 'linear-gradient(90deg, #43c77f, #71dd95)' : playerHealth > 25 ? 'linear-gradient(90deg, #d8a644, #f0c06a)' : 'linear-gradient(90deg, #c14949, #eb6464)', transition: 'width 120ms linear' }} />
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#edf7ff', textShadow: '0 1px 2px rgba(0, 0, 0, 0.85)', letterSpacing: 0.4 }}>
-          {Math.max(0, Math.round(playerHealth))}/100
+      <div style={{ position: 'absolute', top: selectedMode === 'multiplayer' ? 56 : 45, left: 12, zIndex: 10, width: 286, background: 'rgba(8, 14, 20, 0.78)', border: '1px solid rgba(126, 173, 255, 0.45)', borderRadius: 12, padding: '10px 12px', boxShadow: '0 8px 18px rgba(0, 0, 0, 0.28)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, color: '#eaf4ff' }}>
+          <span style={{ fontSize: 11, letterSpacing: 0.7, textTransform: 'uppercase', opacity: 0.85 }}>Vida</span>
+          <span style={{ fontSize: 13, fontWeight: 800 }}>{Math.max(0, Math.round(playerHealth))}/100</span>
+        </div>
+        <div style={{ position: 'relative', width: '100%', height: 18, borderRadius: 999, background: 'rgba(30, 42, 60, 0.95)', border: '1px solid rgba(160, 190, 220, 0.35)', overflow: 'hidden' }}>
+          <div style={{ width: `${Math.max(0, Math.min(100, playerHealth))}%`, height: '100%', background: playerHealth > 55 ? 'linear-gradient(90deg, #43c77f, #71dd95)' : playerHealth > 25 ? 'linear-gradient(90deg, #d8a644, #f0c06a)' : 'linear-gradient(90deg, #c14949, #eb6464)', transition: 'width 120ms linear' }} />
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#f8fbff', textShadow: '0 1px 2px rgba(0, 0, 0, 0.95)', letterSpacing: 0.45 }}>
+            Combate activo
+          </div>
         </div>
       </div>
 
-      {botsRemaining === 0 && (
+      {selectedMode === 'multiplayer' && play && (
+        <div style={{ position: 'absolute', bottom: 14, right: 14, zIndex: 10, width: 240, background: 'rgba(8, 14, 20, 0.82)', border: '1px solid rgba(126, 173, 255, 0.45)', borderRadius: 10, padding: '10px 12px', color: '#d9ebff', boxShadow: '0 8px 18px rgba(0, 0, 0, 0.28)' }}>
+          <div style={{ fontSize: 11, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8, opacity: 0.9 }}>
+            Jugadores conectados {remotePlayers.length}/4
+          </div>
+          <div style={{ display: 'grid', gap: 6 }}>
+            {remotePlayers.map((player) => {
+              const isSelf = player.id === socketId;
+              return (
+                <div key={player.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: isSelf ? '#ffffff' : '#d9ebff' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: player.color ?? '#78c7ff', boxShadow: `0 0 8px ${player.color ?? '#78c7ff'}` }} />
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {player.name ?? 'Jugador'}
+                  </span>
+                  {isSelf && <span style={{ fontSize: 10, opacity: 0.7 }}>tú</span>}
+                </div>
+              );
+            })}
+            {remotePlayers.length === 0 && (
+              <div style={{ fontSize: 12, opacity: 0.75 }}>Conectando sala...</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {selectedMode === 'solo' && botsRemaining === 0 && (
         <div style={{ position: 'absolute', top: 54, left: 12, zIndex: 10, color: '#e9ffd7', background: 'rgba(22, 53, 31, 0.76)', border: '1px solid #5fb17e', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
           Arena limpia. Has eliminado todos los bots de frutas.
         </div>
@@ -1720,6 +1753,8 @@ export default function App() {
         playerName={playerName}
         weapon={weapon}
         ammo={ammo}
+        remotePlayers={remotePlayers}
+        socketId={socketId}
         onStart={onStart}
         onContinue={onContinue}
         onBackToStart={onBackToStart}
