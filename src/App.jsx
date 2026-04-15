@@ -51,7 +51,6 @@ const MULTIPLAYER_PREVIEW_PLAYERS = [
   { id: 'ally-1', name: 'Lima', x: 2.8, z: -1.5, color: '#66d9ff' },
   { id: 'ally-2', name: 'Kiwi', x: -4.2, z: 4.6, color: '#ffd166' },
 ];
-const RADAR_TARGETS = MAP_OBSTACLES.map((obs) => ({ id: obs.id, x: obs.x, z: obs.z, color: obs.color }));
 const FRUIT_TYPES = ['banana', 'watermelon', 'coconut', 'lime'];
 const SOLO_BOTS_TEMPLATE = [
   { id: 'bot-banana-1', fruit: 'banana', x: -8, z: -3, radius: 0.58, speed: 0.65, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
@@ -590,19 +589,19 @@ function FruitBotUnit({ bot, style }) {
 
   return (
     <group ref={root} position={[bot.x, 0, bot.z]}>
-      <mesh position={[0, 0.2, 0]}>
-        <cylinderGeometry args={[bot.radius * 0.95, bot.radius * 1.1, 0.24, 14]} />
-        <meshStandardMaterial color="#2f3f52" roughness={0.84} metalness={0.14} />
-      </mesh>
-
-      <mesh position={[0, 0.78, 0]}>
-        <cylinderGeometry args={[bot.radius * 0.46, bot.radius * 0.52, 0.72, 14]} />
-        <meshStandardMaterial color={style.detail} roughness={0.62} metalness={0.08} />
+      <mesh position={[0, 0.7, 0]}>
+        <sphereGeometry args={[bot.radius * 0.52, 14, 14]} />
+        <meshStandardMaterial color={style.detail} roughness={0.56} metalness={0.09} />
       </mesh>
 
       <mesh position={[0, 1.28, 0]}>
         <sphereGeometry args={[bot.radius, 18, 18]} />
         <meshStandardMaterial color={bodyColor} emissive={isHit ? '#9a2020' : style.detail} emissiveIntensity={isHit ? 0.5 : 0.1} roughness={0.44} metalness={0.08} />
+      </mesh>
+
+      <mesh position={[0, 1.22, bot.radius * 0.88]}>
+        <sphereGeometry args={[bot.radius * 0.34, 14, 14]} />
+        <meshStandardMaterial color="#fff4dc" roughness={0.48} metalness={0.04} />
       </mesh>
 
       <mesh ref={leftArm} position={[bot.radius * 0.72, 0.88, 0]}>
@@ -623,6 +622,16 @@ function FruitBotUnit({ bot, style }) {
       <mesh ref={rightFoot} position={[-bot.radius * 0.35, 0.22, 0.08]}>
         <sphereGeometry args={[bot.radius * 0.22, 10, 10]} />
         <meshStandardMaterial color={style.detail} roughness={0.55} metalness={0.08} />
+      </mesh>
+
+      <mesh position={[-bot.radius * 0.24, 1.35, bot.radius * 0.78]}>
+        <sphereGeometry args={[bot.radius * 0.08, 8, 8]} />
+        <meshBasicMaterial color="#1f2732" />
+      </mesh>
+
+      <mesh position={[bot.radius * 0.24, 1.35, bot.radius * 0.78]}>
+        <sphereGeometry args={[bot.radius * 0.08, 8, 8]} />
+        <meshBasicMaterial color="#1f2732" />
       </mesh>
 
       <mesh position={[0, 1.78, 0]} rotation={[0.6, 0, 0]}>
@@ -774,7 +783,7 @@ function ShootingSystem({ enabled, weapon, onSpawnBullet, onShot }) {
   return null;
 }
 
-function MiniMapRadar({ playerPosRef }) {
+function MiniMapRadar({ playerPosRef, bots }) {
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -831,20 +840,21 @@ function MiniMapRadar({ playerPosRef }) {
           <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.2)', transform: 'translateX(-50%)' }} />
           <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.2)', transform: 'translateY(-50%)' }} />
 
-          {RADAR_TARGETS.map((target) => {
-            const pos = toRadar(target.x, target.z);
+          {bots.map((bot) => {
+            const pos = toRadar(bot.x, bot.z);
             return (
               <div
-                key={`radar-${target.id}`}
+                key={`radar-bot-${bot.id}`}
                 style={{
                   position: 'absolute',
                   left: pos.left,
                   top: pos.top,
-                  width: 7,
-                  height: 7,
+                  width: 8,
+                  height: 8,
                   borderRadius: '50%',
-                  background: target.color,
-                  boxShadow: `0 0 8px ${target.color}`,
+                  background: '#ff5353',
+                  border: '1px solid #ffd0d0',
+                  boxShadow: '0 0 10px rgba(255, 70, 70, 0.95)',
                   transform: 'translate(-50%, -50%)',
                 }}
               />
@@ -940,6 +950,7 @@ function Overlay({
   draftName,
   setDraftName,
   playerPosRef,
+  bots,
 }) {
   if (!play) {
     return (
@@ -1050,8 +1061,11 @@ function Overlay({
         {playerName} | {weapon.name} | Municion: {ammo} | Vida: {playerHealth} | Bots restantes: {botsRemaining}
       </div>
 
-      <div style={{ position: 'absolute', top: 45, left: 12, zIndex: 10, width: 240, height: 10, borderRadius: 999, background: 'rgba(30, 42, 60, 0.85)', border: '1px solid rgba(160, 190, 220, 0.4)', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 45, left: 12, zIndex: 10, width: 240, height: 14, borderRadius: 999, background: 'rgba(30, 42, 60, 0.85)', border: '1px solid rgba(160, 190, 220, 0.4)', overflow: 'hidden' }}>
         <div style={{ width: `${Math.max(0, Math.min(100, playerHealth))}%`, height: '100%', background: playerHealth > 55 ? 'linear-gradient(90deg, #43c77f, #71dd95)' : playerHealth > 25 ? 'linear-gradient(90deg, #d8a644, #f0c06a)' : 'linear-gradient(90deg, #c14949, #eb6464)', transition: 'width 120ms linear' }} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#edf7ff', textShadow: '0 1px 2px rgba(0, 0, 0, 0.85)', letterSpacing: 0.4 }}>
+          {Math.max(0, Math.round(playerHealth))}/100
+        </div>
       </div>
 
       {botsRemaining === 0 && (
@@ -1072,7 +1086,7 @@ function Overlay({
         </div>
       )}
 
-      {!paused && <MiniMapRadar playerPosRef={playerPosRef} />}
+      {!paused && <MiniMapRadar playerPosRef={playerPosRef} bots={bots} />}
 
       {paused && (
         <div className="pause-menu" style={{ zIndex: 25 }}>
@@ -1428,6 +1442,7 @@ export default function App() {
         draftName={draftName}
         setDraftName={setDraftName}
         playerPosRef={playerPosRef}
+        bots={bots}
       />
 
       <KeyboardControls map={keyboardMap}>
