@@ -300,16 +300,59 @@ function PlayerController({ enabled, onPositionChange, shotSignalRef, weaponColo
   const forward = useRef(new THREE.Vector3());
   const right = useRef(new THREE.Vector3());
   const targetMove = useRef(new THREE.Vector3());
+  const up = useRef(new THREE.Vector3(0, 1, 0));
+
+  const resolveObstacleCollisions = (x, z) => {
+    const playerRadius = 0.44;
+    let nextX = x;
+    let nextZ = z;
+
+    for (let i = 0; i < MAP_OBSTACLES.length; i += 1) {
+      const obstacle = MAP_OBSTACLES[i];
+      const dx = nextX - obstacle.x;
+      const dz = nextZ - obstacle.z;
+
+      if (obstacle.type === 'circle') {
+        const avoidRadius = obstacle.radius + playerRadius;
+        const distSq = dx * dx + dz * dz;
+        if (distSq < avoidRadius * avoidRadius) {
+          const dist = Math.sqrt(Math.max(distSq, 0.0001));
+          nextX = obstacle.x + (dx / dist) * avoidRadius;
+          nextZ = obstacle.z + (dz / dist) * avoidRadius;
+        }
+        continue;
+      }
+
+      const halfW = obstacle.width * 0.5 + playerRadius;
+      const halfD = obstacle.depth * 0.5 + playerRadius;
+      const insideX = Math.abs(dx) < halfW;
+      const insideZ = Math.abs(dz) < halfD;
+
+      if (!insideX || !insideZ) continue;
+
+      const penX = halfW - Math.abs(dx);
+      const penZ = halfD - Math.abs(dz);
+
+      if (penX < penZ) {
+        nextX += dx > 0 ? penX : -penX;
+      } else {
+        nextZ += dz > 0 ? penZ : -penZ;
+      }
+    }
+
+    return { x: nextX, z: nextZ };
+  };
 
   useFrame((_, delta) => {
     if (!enabled) return;
+    const safeDelta = Math.min(delta, 1 / 45);
 
     const speed = input.shift ? 8.2 : 5;
 
     camera.getWorldDirection(forward.current);
     forward.current.y = 0;
     forward.current.normalize();
-    right.current.crossVectors(new THREE.Vector3(0, 1, 0), forward.current).normalize();
+    right.current.crossVectors(up.current, forward.current).normalize();
 
     targetMove.current.set(0, 0, 0);
     if (input.forward) targetMove.current.add(forward.current);
@@ -321,23 +364,33 @@ function PlayerController({ enabled, onPositionChange, shotSignalRef, weaponColo
       targetMove.current.normalize().multiplyScalar(speed);
     }
 
-    horizontalVel.current.lerp(targetMove.current, 0.2);
+    horizontalVel.current.lerp(targetMove.current, 0.22);
 
     if (input.jump && canJump.current) {
       verticalVel.current = 5.8;
       canJump.current = false;
     }
 
-    verticalVel.current -= 14 * delta;
+    verticalVel.current = Math.max(-24, verticalVel.current - 14 * safeDelta);
 
-    position.current.x += horizontalVel.current.x * delta;
-    position.current.z += horizontalVel.current.z * delta;
-    position.current.y += verticalVel.current * delta;
+    const stepX = horizontalVel.current.x * safeDelta;
+    const stepZ = horizontalVel.current.z * safeDelta;
+    const stepLen = Math.hypot(stepX, stepZ);
+    const maxStep = 0.22;
+    const stepScale = stepLen > maxStep ? maxStep / stepLen : 1;
+
+    const proposedX = position.current.x + stepX * stepScale;
+    const proposedZ = position.current.z + stepZ * stepScale;
+    const resolved = resolveObstacleCollisions(proposedX, proposedZ);
+
+    position.current.x = resolved.x;
+    position.current.z = resolved.z;
+    position.current.y += verticalVel.current * safeDelta;
 
     const mapRadius = 12;
     const planar = Math.hypot(position.current.x, position.current.z);
     if (planar > mapRadius) {
-      const inv = mapRadius / planar;
+      const inv = (mapRadius - 0.05) / planar;
       position.current.x *= inv;
       position.current.z *= inv;
     }
@@ -475,7 +528,7 @@ function MiniMapRadar({ playerPosRef }) {
   useEffect(() => {
     const id = window.setInterval(() => {
       setTick((n) => (n + 1) % 10000);
-    }, 80);
+    }, 180);
     return () => window.clearInterval(id);
   }, []);
 
@@ -562,6 +615,55 @@ function MiniMapRadar({ playerPosRef }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function ObstacleField({ obstacleTextureRed, obstacleTextureGreen, obstacleTextureBlue, orbTexture }) {
+  const textureById = {
+    'crate-red': obstacleTextureRed,
+    'tower-green': obstacleTextureGreen,
+    'block-blue': obstacleTextureBlue,
+  };
+
+  return (
+    <>
+      {MAP_OBSTACLES.map((obstacle) => {
+        if (obstacle.type === 'circle') {
+          return (
+            <group key={obstacle.id} position={[obstacle.x, 0, obstacle.z]}>
+              <mesh position={[0, 0.26, 0]}>
+                <cylinderGeometry args={[obstacle.radius + 0.2, obstacle.radius + 0.2, 0.36, 28]} />
+                <meshStandardMaterial color="#2d4154" roughness={0.85} metalness={0.16} />
+              </mesh>
+              <mesh position={[0, 2.2, 0]}>
+                <sphereGeometry args={[obstacle.radius, 24, 24]} />
+                <meshStandardMaterial map={orbTexture} color="#9ce0ff" emissive="#2a4f6b" emissiveIntensity={0.2} roughness={0.32} metalness={0.25} />
+              </mesh>
+            </group>
+          );
+        }
+
+        const texture = textureById[obstacle.id] ?? obstacleTextureBlue;
+        const height = obstacle.id === 'tower-green' ? 3 : 2;
+
+        return (
+          <group key={obstacle.id} position={[obstacle.x, 0, obstacle.z]}>
+            <mesh position={[0, 0.22, 0]}>
+              <cylinderGeometry args={[Math.max(obstacle.width, obstacle.depth) * 0.58, Math.max(obstacle.width, obstacle.depth) * 0.58, 0.28, 20]} />
+              <meshStandardMaterial color="#32465d" roughness={0.82} metalness={0.18} />
+            </mesh>
+            <mesh position={[0, height * 0.5, 0]} castShadow>
+              <boxGeometry args={[obstacle.width, height, obstacle.depth]} />
+              <meshStandardMaterial map={texture} color="#c8d6e6" roughness={0.72} metalness={0.14} />
+            </mesh>
+            <mesh position={[0, height + 0.08, 0]}>
+              <boxGeometry args={[obstacle.width * 0.82, 0.12, obstacle.depth * 0.82]} />
+              <meshStandardMaterial color="#e0e7ef" emissive="#425a74" emissiveIntensity={0.12} roughness={0.58} metalness={0.2} />
+            </mesh>
+          </group>
+        );
+      })}
+    </>
   );
 }
 
@@ -790,7 +892,7 @@ export default function App() {
     const onPointerLockChange = () => {
       const locked = Boolean(document.pointerLockElement);
       setPointerLocked(locked);
-      if (play && !locked) {
+      if (play && !locked && !paused) {
         setPaused(true);
       }
     };
@@ -823,14 +925,12 @@ export default function App() {
     setPlay(true);
     setPaused(false);
     window.focus();
-    lockPointer();
     requestAnimationFrame(() => lockPointer());
   };
 
   const onContinue = () => {
     setPaused(false);
     window.focus();
-    lockPointer();
     requestAnimationFrame(() => lockPointer());
   };
 
@@ -932,25 +1032,12 @@ export default function App() {
             <meshStandardMaterial map={groundTexture} color="#6d7f91" roughness={0.92} metalness={0.03} />
           </mesh>
 
-          <mesh position={[5, 1, 5]} castShadow>
-            <boxGeometry args={[2, 2, 2]} />
-            <meshStandardMaterial map={obstacleTextureRed} color="#ff8a8a" roughness={0.78} metalness={0.08} />
-          </mesh>
-
-          <mesh position={[0, 1.5, -6]} castShadow>
-            <boxGeometry args={[2.2, 3, 2.2]} />
-            <meshStandardMaterial map={obstacleTextureGreen} color="#7de9a7" emissive="#1e5a38" emissiveIntensity={0.22} roughness={0.7} metalness={0.1} />
-          </mesh>
-
-          <mesh position={[-3.5, 2.2, -9]}>
-            <sphereGeometry args={[1.2, 20, 20]} />
-            <meshStandardMaterial map={orbTexture} color="#9ce0ff" emissive="#2a4f6b" emissiveIntensity={0.2} roughness={0.32} metalness={0.25} />
-          </mesh>
-
-          <mesh position={[-6, 1.5, -3]} castShadow>
-            <boxGeometry args={[1.8, 3, 2.2]} />
-            <meshStandardMaterial map={obstacleTextureBlue} color="#95abd0" roughness={0.74} metalness={0.14} />
-          </mesh>
+          <ObstacleField
+            obstacleTextureRed={obstacleTextureRed}
+            obstacleTextureGreen={obstacleTextureGreen}
+            obstacleTextureBlue={obstacleTextureBlue}
+            orbTexture={orbTexture}
+          />
 
           {play && (
             <>
