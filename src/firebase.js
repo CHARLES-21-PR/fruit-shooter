@@ -14,9 +14,15 @@ const firebaseConfig = {
   version: '2',
 };
 
-const databaseURL = import.meta.env.VITE_FIREBASE_DATABASE_URL ?? `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com`;
+const databaseURL = import.meta.env.VITE_FIREBASE_DATABASE_URL;
 
-const isConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId);
+const isConfigured = Boolean(
+  firebaseConfig.apiKey
+  && firebaseConfig.authDomain
+  && firebaseConfig.projectId
+  && firebaseConfig.appId
+  && databaseURL,
+);
 const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
 
 export const firebaseApp = app;
