@@ -4,14 +4,14 @@ import { io } from 'socket.io-client';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? 'http://localhost:3001';
 
-export default function MultiplayerSync({ enabled, playerName, playerPosRef, onSocketId, onPlayers }) {
+export default function MultiplayerSync({ enabled, playerName, playerPosRef, onSocketId, onPlayers, onStatus }) {
   const { camera } = useThree();
   const socketRef = useRef(null);
   const lastSentRef = useRef('');
 
   useEffect(() => {
+    onStatus?.('connecting');
     const socket = io(SOCKET_URL, {
-      transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 500,
@@ -21,6 +21,7 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
 
     socket.on('connect', () => {
       onSocketId?.(socket.id);
+      onStatus?.('connected');
       socket.emit('join', { name: playerName });
     });
 
@@ -29,11 +30,17 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
     });
 
     socket.on('room-full', () => {
+      onStatus?.('full');
       onSocketId?.(null);
       onPlayers?.([]);
     });
 
+    socket.on('connect_error', () => {
+      onStatus?.('error');
+    });
+
     socket.on('disconnect', () => {
+      onStatus?.('disconnected');
       onSocketId?.(null);
       onPlayers?.([]);
     });
@@ -44,8 +51,9 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
       lastSentRef.current = '';
       onSocketId?.(null);
       onPlayers?.([]);
+      onStatus?.('idle');
     };
-  }, [playerName, onPlayers, onSocketId]);
+  }, [playerName, onPlayers, onSocketId, onStatus]);
 
   useEffect(() => {
     if (!enabled) {

@@ -1314,6 +1314,14 @@ function Overlay({
           <div style={{ fontSize: 11, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8, opacity: 0.9 }}>
             Jugadores conectados {remotePlayers.length}/4
           </div>
+          <div style={{ fontSize: 11, marginBottom: 8, opacity: 0.85, color: connectionStatus === 'connected' ? '#8ff0a4' : connectionStatus === 'error' || connectionStatus === 'full' ? '#ffb3b3' : '#d9ebff' }}>
+            {connectionStatus === 'connected' && 'Sala conectada'}
+            {connectionStatus === 'connecting' && 'Buscando sala...'}
+            {connectionStatus === 'disconnected' && 'Desconectado, reintentando'}
+            {connectionStatus === 'full' && 'Sala llena'}
+            {connectionStatus === 'error' && 'No se pudo conectar'}
+            {connectionStatus === 'idle' && 'Esperando conexión'}
+          </div>
           <div style={{ display: 'grid', gap: 6 }}>
             {remotePlayers.map((player) => {
               const isSelf = player.id === socketId;
@@ -1328,7 +1336,9 @@ function Overlay({
               );
             })}
             {remotePlayers.length === 0 && (
-              <div style={{ fontSize: 12, opacity: 0.75 }}>Conectando sala...</div>
+              <div style={{ fontSize: 12, opacity: 0.75 }}>
+                {connectionStatus === 'connected' ? 'Esperando jugadores...' : 'Conectando sala...'}
+              </div>
             )}
           </div>
         </div>
@@ -1452,6 +1462,7 @@ export default function App() {
   const [bots, setBots] = useState([]);
   const [remotePlayers, setRemotePlayers] = useState([]);
   const [socketId, setSocketId] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState('idle');
   const ammoRef = useRef(WEAPONS[0].ammo);
 
   const playerPosRef = useRef({ x: 0, z: 0 });
@@ -1601,6 +1612,7 @@ export default function App() {
     void ensureContext();
     setRemotePlayers([]);
     setSocketId(null);
+    setConnectionStatus('idle');
     setBots(selectedMode === 'solo' ? SOLO_BOTS_TEMPLATE.map((bot) => stampBotSpawn({ ...bot })) : []);
     setPlay(true);
     setPaused(false);
@@ -1622,6 +1634,7 @@ export default function App() {
     setBots([]);
     setRemotePlayers([]);
     setSocketId(null);
+    setConnectionStatus('idle');
     setPlayerHealth(100);
     if (waveSpawnTimeoutRef.current) {
       window.clearTimeout(waveSpawnTimeoutRef.current);
@@ -1633,6 +1646,7 @@ export default function App() {
     setAmmo(resetAmmo);
     setPlayerName('');
     setModeMessage('');
+    setConnectionStatus('idle');
     ensureMenuCursorVisible();
   };
 
@@ -1651,6 +1665,7 @@ export default function App() {
     ammoRef.current = resetAmmo;
     setAmmo(resetAmmo);
     void ensureContext();
+    setConnectionStatus('idle');
     setBots(selectedMode === 'solo' ? SOLO_BOTS_TEMPLATE.map((bot) => stampBotSpawn({ ...bot })) : []);
     window.focus();
     requestAnimationFrame(() => lockPointer());
@@ -1821,6 +1836,7 @@ export default function App() {
               playerPosRef={playerPosRef}
               onSocketId={setSocketId}
               onPlayers={setRemotePlayers}
+              onStatus={setConnectionStatus}
             />
           )}
           {remotePlayers
