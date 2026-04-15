@@ -14,7 +14,7 @@ const firebaseConfig = {
   version: '2',
 };
 
-const databaseURL = import.meta.env.VITE_FIREBASE_DATABASE_URL;
+const databaseURL = import.meta.env.VITE_FIREBASE_DATABASE_URL ?? `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com`;
 
 const isConfigured = Boolean(
   firebaseConfig.apiKey
