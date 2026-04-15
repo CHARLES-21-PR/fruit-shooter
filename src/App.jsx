@@ -352,11 +352,13 @@ function MiniMap({ playerPosRef }) {
 function Overlay({
   play,
   paused,
+  pointerLocked,
   playerName,
   weapon,
   ammo,
   onStart,
   onContinue,
+  onBackToStart,
   selectedWeaponId,
   setSelectedWeaponId,
   draftName,
@@ -365,59 +367,40 @@ function Overlay({
 }) {
   if (!play) {
     return (
-      <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', zIndex: 20 }}>
-        <div
-          style={{
-            background: 'linear-gradient(180deg, rgba(17,30,22,0.95), rgba(8,14,12,0.95))',
-            border: '1px solid #3e6b53',
-            borderRadius: 14,
-            padding: 24,
-            width: 'min(92vw, 560px)',
-            color: '#e8f8e7',
-          }}
-        >
-          <h1 style={{ marginTop: 0, marginBottom: 8 }}>FRUIT STRIKE 3D</h1>
-          <p style={{ marginTop: 0, opacity: 0.9 }}>Configura tu nombre y el arma para entrar.</p>
+      <div className="menu" style={{ zIndex: 20 }}>
+        <div className="intro-card" style={{ maxWidth: 640 }}>
+          <p className="intro-kicker">Arcade Survival</p>
+          <h1>Fruit Strike 3D</h1>
+          <p className="intro-copy">Entra, captura el mouse y sobrevive con la mejor fruta-arma.</p>
 
-          <label htmlFor="nickname" style={{ display: 'block', marginBottom: 6 }}>Tu apodo</label>
+          <label htmlFor="nickname">Tu apodo</label>
           <input
             id="nickname"
+            className="intro-input"
             value={draftName}
             onChange={(e) => setDraftName(e.target.value)}
             maxLength={16}
             placeholder="Ej: MangoPro"
-            style={{ width: '100%', marginBottom: 14, padding: '10px 12px', borderRadius: 8, border: '1px solid #4e7a63' }}
           />
 
-          <p style={{ marginBottom: 8 }}>Elige arma</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 14 }}>
+          <p className="selector-title">Elige arma</p>
+          <div className="weapon-selector" style={{ marginBottom: 12 }}>
             {WEAPONS.map((w) => (
               <button
                 key={w.id}
                 type="button"
                 onClick={() => setSelectedWeaponId(w.id)}
-                style={{
-                  borderRadius: 8,
-                  border: selectedWeaponId === w.id ? '2px solid #9ff3b8' : '1px solid #4e7a63',
-                  background: '#132118',
-                  color: '#e8f8e7',
-                  padding: 10,
-                  cursor: 'pointer',
-                }}
+                className={`weapon-card ${selectedWeaponId === w.id ? 'weapon-card--active' : ''}`}
+                style={{ '--weapon-color': w.color }}
               >
-                <div style={{ fontWeight: 700 }}>{w.name}</div>
-                <div style={{ fontSize: 12, opacity: 0.9 }}>Balas: {w.ammo}</div>
+                <span className="weapon-name">{w.name}</span>
+                <span className="weapon-ammo">Balas: {w.ammo} · Cadencia: {Math.round(1000 / w.cooldownMs)}ps</span>
               </button>
             ))}
           </div>
 
-          <button
-            type="button"
-            className="start-button"
-            onClick={onStart}
-            style={{ padding: '12px 18px', fontSize: 16, borderRadius: 9, border: 'none', background: '#8ae3a6', cursor: 'pointer' }}
-          >
-            Entrar
+          <button type="button" className="start-button" onClick={onStart}>
+            Entrar a la Arena
           </button>
         </div>
       </div>
@@ -468,24 +451,30 @@ function Overlay({
       {!paused && <MiniMap playerPosRef={playerPosRef} />}
 
       {paused && (
-        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', zIndex: 25 }}>
-          <div style={{ background: 'rgba(10, 16, 24, 0.94)', border: '1px solid #476b5a', borderRadius: 12, padding: 24, width: 'min(90vw, 420px)', color: '#f3fff5' }}>
-            <h2 style={{ marginTop: 0 }}>Menu del Juego</h2>
-            <p>ESC libera el cursor y abre este menu.</p>
+        <div className="pause-menu" style={{ zIndex: 25 }}>
+          <div className="pause-card" style={{ width: 'min(90vw, 460px)' }}>
+            <h2>Juego en Pausa</h2>
+            <p>{pointerLocked ? 'Cursor capturado.' : 'Cursor libre. Usa Continuar para volver al juego.'}</p>
             <button
               type="button"
-              className="pause-button--primary"
+              className="pause-button pause-button--primary"
               onClick={onContinue}
-              style={{ width: '100%', padding: '12px 10px', borderRadius: 9, border: 'none', background: '#8ae3a6', cursor: 'pointer', marginBottom: 8 }}
             >
               Continuar
             </button>
             <button
               type="button"
-              onClick={() => window.location.reload()}
-              style={{ width: '100%', padding: '12px 10px', borderRadius: 9, border: '1px solid #5b7366', background: '#1a2420', color: '#f3fff5', cursor: 'pointer' }}
+              className="pause-button"
+              onClick={onBackToStart}
             >
-              Salir
+              Volver al Inicio
+            </button>
+            <button
+              type="button"
+              className="pause-button"
+              onClick={() => window.location.reload()}
+            >
+              Reiniciar Juego
             </button>
           </div>
         </div>
@@ -498,6 +487,7 @@ export default function App() {
   const controlsRef = useRef(null);
   const [play, setPlay] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [pointerLocked, setPointerLocked] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [draftName, setDraftName] = useState('');
   const [selectedWeaponId, setSelectedWeaponId] = useState(WEAPONS[0].id);
@@ -509,6 +499,14 @@ export default function App() {
   const shotSignalRef = useRef(0);
 
   const weapon = WEAPON_BY_ID[weaponId] ?? WEAPONS[0];
+
+  const lockPointer = () => {
+    controlsRef.current?.lock();
+  };
+
+  const unlockPointer = () => {
+    controlsRef.current?.unlock();
+  };
 
   const keyboardMap = useMemo(
     () => [
@@ -534,13 +532,14 @@ export default function App() {
       const locked = Boolean(document.pointerLockElement);
 
       if (locked) {
-        controlsRef.current?.unlock();
+        unlockPointer();
+        setPaused(true);
         return;
       }
 
       if (paused) {
         setPaused(false);
-        setTimeout(() => controlsRef.current?.lock(), 0);
+        requestAnimationFrame(() => lockPointer());
       } else {
         setPaused(true);
       }
@@ -550,6 +549,7 @@ export default function App() {
 
     const onPointerLockChange = () => {
       const locked = Boolean(document.pointerLockElement);
+      setPointerLocked(locked);
       if (play && !locked) {
         setPaused(true);
       }
@@ -580,19 +580,25 @@ export default function App() {
     setAmmo(WEAPON_BY_ID[selectedWeaponId].ammo);
     setPlay(true);
     setPaused(false);
-
-    setTimeout(() => {
-      window.focus();
-      controlsRef.current?.lock();
-    }, 0);
+    window.focus();
+    lockPointer();
+    requestAnimationFrame(() => lockPointer());
   };
 
   const onContinue = () => {
     setPaused(false);
-    setTimeout(() => {
-      window.focus();
-      controlsRef.current?.lock();
-    }, 0);
+    window.focus();
+    lockPointer();
+    requestAnimationFrame(() => lockPointer());
+  };
+
+  const onBackToStart = () => {
+    unlockPointer();
+    setPaused(false);
+    setPlay(false);
+    setBullets([]);
+    setAmmo(WEAPON_BY_ID[selectedWeaponId].ammo);
+    setPlayerName('');
   };
 
   const onShot = () => {
@@ -631,11 +637,13 @@ export default function App() {
       <Overlay
         play={play}
         paused={paused}
+        pointerLocked={pointerLocked}
         playerName={playerName}
         weapon={weapon}
         ammo={ammo}
         onStart={onStart}
         onContinue={onContinue}
+        onBackToStart={onBackToStart}
         selectedWeaponId={selectedWeaponId}
         setSelectedWeaponId={setSelectedWeaponId}
         draftName={draftName}
@@ -653,7 +661,7 @@ export default function App() {
             camera.lookAt(0, 1.7, 0);
           }}
         >
-          {play && <PointerLockControls ref={controlsRef} enabled={!paused} selector=".start-button, .pause-button--primary" />}
+          <PointerLockControls ref={controlsRef} enabled={play && !paused} />
 
           <Sky sunPosition={[100, 20, 100]} />
           <Environment preset="city" />
