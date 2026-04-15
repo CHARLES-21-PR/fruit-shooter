@@ -10,7 +10,7 @@ const WEAPONS = [
     color: '#ffd54f',
     ammo: 12,
     cooldownMs: 220,
-    speed: 24,
+    speed: 52,
     size: 0.11,
     pellets: 1,
     spread: 0.01,
@@ -21,7 +21,7 @@ const WEAPONS = [
     color: '#66bb6a',
     ammo: 30,
     cooldownMs: 90,
-    speed: 32,
+    speed: 68,
     size: 0.09,
     pellets: 1,
     spread: 0.004,
@@ -32,7 +32,7 @@ const WEAPONS = [
     color: '#8d6e63',
     ammo: 8,
     cooldownMs: 480,
-    speed: 22,
+    speed: 46,
     size: 0.12,
     pellets: 6,
     spread: 0.075,
@@ -283,6 +283,10 @@ function BulletLayer({ bullets, onExpireMany }) {
 function ShootingSystem({ enabled, weapon, onSpawnBullet, onShot }) {
   const { camera } = useThree();
   const lastShotRef = useRef(0);
+  const tmpForward = useRef(new THREE.Vector3());
+  const tmpTarget = useRef(new THREE.Vector3());
+  const tmpMuzzle = useRef(new THREE.Vector3());
+  const tmpDirection = useRef(new THREE.Vector3());
 
   useEffect(() => {
     const onMouseDown = (event) => {
@@ -294,13 +298,15 @@ function ShootingSystem({ enabled, weapon, onSpawnBullet, onShot }) {
 
       lastShotRef.current = now;
 
-      const dir = new THREE.Vector3();
-      camera.getWorldDirection(dir);
-      const start = camera.position.clone().add(new THREE.Vector3(0.24, -0.1, -0.46).applyQuaternion(camera.quaternion));
+      camera.getWorldDirection(tmpForward.current);
+      tmpTarget.current.copy(camera.position).add(tmpForward.current.clone().multiplyScalar(120));
+      tmpMuzzle.current.copy(camera.position).add(new THREE.Vector3(0.24, -0.1, -0.46).applyQuaternion(camera.quaternion));
 
       for (let i = 0; i < weapon.pellets; i += 1) {
-        const spreadDir = dir
-          .clone()
+        const spreadDir = tmpDirection.current
+          .copy(tmpTarget.current)
+          .sub(tmpMuzzle.current)
+          .normalize()
           .add(
             new THREE.Vector3(
               (Math.random() - 0.5) * weapon.spread,
@@ -312,7 +318,7 @@ function ShootingSystem({ enabled, weapon, onSpawnBullet, onShot }) {
 
         onSpawnBullet({
           id: `${now}-${i}-${Math.random().toString(16).slice(2)}`,
-          pos: [start.x, start.y, start.z],
+          pos: [tmpMuzzle.current.x, tmpMuzzle.current.y, tmpMuzzle.current.z],
           vel: [spreadDir.x * weapon.speed, spreadDir.y * weapon.speed, spreadDir.z * weapon.speed],
           size: weapon.size,
           color: weapon.color,
@@ -494,11 +500,16 @@ export default function App() {
   const [weaponId, setWeaponId] = useState(WEAPONS[0].id);
   const [ammo, setAmmo] = useState(WEAPONS[0].ammo);
   const [bullets, setBullets] = useState([]);
+  const ammoRef = useRef(WEAPONS[0].ammo);
 
   const playerPosRef = useRef({ x: 0, z: 0 });
   const shotSignalRef = useRef(0);
 
   const weapon = WEAPON_BY_ID[weaponId] ?? WEAPONS[0];
+
+  useEffect(() => {
+    ammoRef.current = ammo;
+  }, [ammo]);
 
   const lockPointer = () => {
     controlsRef.current?.lock();
@@ -523,7 +534,9 @@ export default function App() {
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.code === 'KeyR' && play && !paused) {
-        setAmmo(WEAPON_BY_ID[weaponId].ammo);
+        const reloaded = WEAPON_BY_ID[weaponId].ammo;
+        ammoRef.current = reloaded;
+        setAmmo(reloaded);
       }
 
       if (event.code !== 'Escape' && event.key !== 'Escape') return;
@@ -577,7 +590,9 @@ export default function App() {
 
     setPlayerName(cleanName);
     setWeaponId(selectedWeaponId);
-    setAmmo(WEAPON_BY_ID[selectedWeaponId].ammo);
+    const startAmmo = WEAPON_BY_ID[selectedWeaponId].ammo;
+    ammoRef.current = startAmmo;
+    setAmmo(startAmmo);
     setPlay(true);
     setPaused(false);
     window.focus();
@@ -597,20 +612,20 @@ export default function App() {
     setPaused(false);
     setPlay(false);
     setBullets([]);
-    setAmmo(WEAPON_BY_ID[selectedWeaponId].ammo);
+    const resetAmmo = WEAPON_BY_ID[selectedWeaponId].ammo;
+    ammoRef.current = resetAmmo;
+    setAmmo(resetAmmo);
     setPlayerName('');
   };
 
   const onShot = () => {
     if (!play || paused) return false;
-    let ok = false;
-    setAmmo((current) => {
-      if (current <= 0) return current;
-      ok = true;
-      return current - 1;
-    });
-    if (ok) shotSignalRef.current += 1;
-    return ok;
+    if (ammoRef.current <= 0) return false;
+    const nextAmmo = ammoRef.current - 1;
+    ammoRef.current = nextAmmo;
+    setAmmo(nextAmmo);
+    shotSignalRef.current += 1;
+    return true;
   };
 
   const onSpawnBullet = (bullet) => {
