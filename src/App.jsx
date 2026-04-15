@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Grid, KeyboardControls, PointerLockControls, Sky } from '@react-three/drei';
 import * as THREE from 'three';
+import MultiplayerSync from './multiplayer/MultiplayerSync';
+import OtherPlayer from './multiplayer/OtherPlayer';
 
 const WEAPONS = [
   {
@@ -1207,14 +1209,14 @@ function Overlay({
               onClick={() => setSelectedMode('multiplayer')}
               className={`mode-card ${selectedMode === 'multiplayer' ? 'mode-card--active-multi' : ''}`}
             >
-              <span className="mode-card__kicker">Pronto</span>
+              <span className="mode-card__kicker">Online</span>
               <span className="mode-card__title">Multijugador</span>
-              <span className="mode-card__desc">Bloqueado temporalmente, estará disponible en una próxima actualización.</span>
+              <span className="mode-card__desc">Hasta 4 jugadores en la misma arena con estado sincronizado.</span>
             </button>
           </div>
           {selectedMode === 'multiplayer' && (
             <p className="mode-message mode-message--warn" style={{ marginTop: 0 }}>
-              El modo multijugador estará disponible pronto.
+              Sala online activa. Se conectará al servidor configurado y admitirá hasta 4 jugadores.
             </p>
           )}
           {modeMessage && (
@@ -1250,7 +1252,7 @@ function Overlay({
           </div>
 
           <button type="button" className="start-button" onClick={onStart}>
-            Entrar a la Arena
+            {selectedMode === 'multiplayer' ? 'Entrar Online' : 'Entrar a la Arena'}
           </button>
         </div>
       </div>
@@ -1415,6 +1417,8 @@ export default function App() {
   const [playerHealth, setPlayerHealth] = useState(100);
   const [bullets, setBullets] = useState([]);
   const [bots, setBots] = useState([]);
+  const [remotePlayers, setRemotePlayers] = useState([]);
+  const [socketId, setSocketId] = useState(null);
   const ammoRef = useRef(WEAPONS[0].ammo);
 
   const playerPosRef = useRef({ x: 0, z: 0 });
@@ -1548,11 +1552,6 @@ export default function App() {
     const cleanName = draftName.trim();
     if (!cleanName) return;
 
-    if (selectedMode !== 'solo') {
-      setModeMessage('Modo multijugador bloqueado por el momento.');
-      return;
-    }
-
     setModeMessage('');
 
     setPlayerName(cleanName);
@@ -1567,7 +1566,9 @@ export default function App() {
       waveSpawnTimeoutRef.current = null;
     }
     void ensureContext();
-    setBots(SOLO_BOTS_TEMPLATE.map((bot) => stampBotSpawn({ ...bot })));
+    setRemotePlayers([]);
+    setSocketId(null);
+    setBots(selectedMode === 'solo' ? SOLO_BOTS_TEMPLATE.map((bot) => stampBotSpawn({ ...bot })) : []);
     setPlay(true);
     setPaused(false);
     window.focus();
@@ -1586,6 +1587,8 @@ export default function App() {
     setPlay(false);
     setBullets([]);
     setBots([]);
+    setRemotePlayers([]);
+    setSocketId(null);
     setPlayerHealth(100);
     if (waveSpawnTimeoutRef.current) {
       window.clearTimeout(waveSpawnTimeoutRef.current);
@@ -1615,7 +1618,7 @@ export default function App() {
     ammoRef.current = resetAmmo;
     setAmmo(resetAmmo);
     void ensureContext();
-    setBots(SOLO_BOTS_TEMPLATE.map((bot) => stampBotSpawn({ ...bot })));
+    setBots(selectedMode === 'solo' ? SOLO_BOTS_TEMPLATE.map((bot) => stampBotSpawn({ ...bot })) : []);
     window.focus();
     requestAnimationFrame(() => lockPointer());
   };
@@ -1776,6 +1779,20 @@ export default function App() {
           />
 
           <FruitBots bots={bots} />
+          {play && selectedMode === 'multiplayer' && (
+            <MultiplayerSync
+              enabled={!paused && playerHealth > 0}
+              playerName={playerName}
+              playerPosRef={playerPosRef}
+              onSocketId={setSocketId}
+              onPlayers={setRemotePlayers}
+            />
+          )}
+          {remotePlayers
+            .filter((player) => player.id !== socketId)
+            .map((player) => (
+              <OtherPlayer key={player.id} player={player} />
+            ))}
           <BotDirector active={play && !paused && selectedMode === 'solo' && playerHealth > 0 && bots.length > 0} bots={bots} setBots={setBots} playerPosRef={playerPosRef} onSpawnBullet={onSpawnBullet} />
 
           {play && (
