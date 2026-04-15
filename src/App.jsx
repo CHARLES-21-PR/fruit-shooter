@@ -52,6 +52,16 @@ const MULTIPLAYER_PREVIEW_PLAYERS = [
   { id: 'ally-2', name: 'Kiwi', x: -4.2, z: 4.6, color: '#ffd166' },
 ];
 const RADAR_TARGETS = MAP_OBSTACLES.map((obs) => ({ id: obs.id, x: obs.x, z: obs.z, color: obs.color }));
+const SOLO_BOTS_TEMPLATE = [
+  { id: 'bot-banana-1', fruit: 'banana', x: -8, z: -3, radius: 0.58 },
+  { id: 'bot-banana-2', fruit: 'banana', x: 7.2, z: -1.8, radius: 0.58 },
+  { id: 'bot-watermelon-1', fruit: 'watermelon', x: 0, z: -8.5, radius: 0.62 },
+  { id: 'bot-watermelon-2', fruit: 'watermelon', x: -1.4, z: 8.7, radius: 0.62 },
+  { id: 'bot-coconut-1', fruit: 'coconut', x: 8.7, z: 6.2, radius: 0.56 },
+  { id: 'bot-coconut-2', fruit: 'coconut', x: -7.2, z: 5.8, radius: 0.56 },
+  { id: 'bot-lime-1', fruit: 'lime', x: 2.8, z: 2.8, radius: 0.54 },
+  { id: 'bot-lime-2', fruit: 'lime', x: -3.2, z: -1.2, radius: 0.54 },
+];
 
 function createGroundTexture() {
   const size = 256;
@@ -410,7 +420,7 @@ function PlayerController({ enabled, onPositionChange, shotSignalRef, weaponColo
   return <WeaponView color={weaponColor} shotSignalRef={shotSignalRef} />;
 }
 
-function BulletLayer({ bullets, onExpireMany }) {
+function BulletLayer({ bullets, bots, onExpireMany, onBotHits }) {
   const refs = useRef(new Map());
   const ages = useRef(new Map());
 
@@ -427,6 +437,7 @@ function BulletLayer({ bullets, onExpireMany }) {
   useFrame((_, delta) => {
     if (bullets.length === 0) return;
     const expired = [];
+    const hitBotIds = new Set();
 
     for (let i = 0; i < bullets.length; i += 1) {
       const bullet = bullets[i];
@@ -440,6 +451,19 @@ function BulletLayer({ bullets, onExpireMany }) {
       ref.position.y += bullet.vel[1] * delta;
       ref.position.z += bullet.vel[2] * delta;
 
+      for (let j = 0; j < bots.length; j += 1) {
+        const bot = bots[j];
+        const dx = ref.position.x - bot.x;
+        const dy = ref.position.y - 1.2;
+        const dz = ref.position.z - bot.z;
+        const hitRadius = bot.radius + bullet.size;
+        if (dx * dx + dy * dy + dz * dz <= hitRadius * hitRadius) {
+          hitBotIds.add(bot.id);
+          expired.push(bullet.id);
+          break;
+        }
+      }
+
       if (age > 0.95 || Math.abs(ref.position.x) > 18 || Math.abs(ref.position.z) > 18 || ref.position.y < 0.2) {
         expired.push(bullet.id);
       }
@@ -447,6 +471,10 @@ function BulletLayer({ bullets, onExpireMany }) {
 
     if (expired.length > 0) {
       onExpireMany(expired);
+    }
+
+    if (hitBotIds.size > 0) {
+      onBotHits(Array.from(hitBotIds));
     }
   });
 
@@ -465,6 +493,39 @@ function BulletLayer({ bullets, onExpireMany }) {
           <meshBasicMaterial color={bullet.color} />
         </mesh>
       ))}
+    </>
+  );
+}
+
+function FruitBots({ bots }) {
+  const palette = {
+    banana: { body: '#ffd34d', detail: '#7b4f1d', leaf: '#74b06f' },
+    watermelon: { body: '#5bbf5b', detail: '#f16d75', leaf: '#3e8f4f' },
+    coconut: { body: '#8f6d4f', detail: '#5a412e', leaf: '#6ea06a' },
+    lime: { body: '#9ae86b', detail: '#53b44f', leaf: '#5c9d4f' },
+  };
+
+  return (
+    <>
+      {bots.map((bot) => {
+        const style = palette[bot.fruit] ?? palette.lime;
+        return (
+          <group key={bot.id} position={[bot.x, 0, bot.z]}>
+            <mesh position={[0, 0.2, 0]}>
+              <cylinderGeometry args={[bot.radius * 0.95, bot.radius * 1.1, 0.24, 14]} />
+              <meshStandardMaterial color="#2f3f52" roughness={0.84} metalness={0.14} />
+            </mesh>
+            <mesh position={[0, 1.2, 0]}>
+              <sphereGeometry args={[bot.radius, 18, 18]} />
+              <meshStandardMaterial color={style.body} emissive={style.detail} emissiveIntensity={0.1} roughness={0.44} metalness={0.08} />
+            </mesh>
+            <mesh position={[0, 1.78, 0]} rotation={[0.6, 0, 0]}>
+              <coneGeometry args={[0.16, 0.28, 10]} />
+              <meshStandardMaterial color={style.leaf} roughness={0.7} metalness={0.05} />
+            </mesh>
+          </group>
+        );
+      })}
     </>
   );
 }
@@ -671,6 +732,10 @@ function Overlay({
   play,
   paused,
   pointerLocked,
+  selectedMode,
+  setSelectedMode,
+  modeMessage,
+  botsRemaining,
   playerName,
   weapon,
   ammo,
@@ -690,6 +755,38 @@ function Overlay({
           <p className="intro-kicker">Arcade Survival</p>
           <h1>Fruit Strike 3D</h1>
           <p className="intro-copy">Entra, captura el mouse y sobrevive con la mejor fruta-arma.</p>
+
+          <p className="selector-title" style={{ marginTop: 0 }}>Modo de Juego</p>
+          <div className="mode-selector" style={{ marginBottom: 12 }}>
+            <button
+              type="button"
+              onClick={() => setSelectedMode('solo')}
+              className={`mode-card ${selectedMode === 'solo' ? 'mode-card--active-solo' : ''}`}
+            >
+              <span className="mode-card__kicker">Disponible</span>
+              <span className="mode-card__title">Jugar Solo</span>
+              <span className="mode-card__desc">Entra a la arena y elimina todos los bots de frutas.</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedMode('multiplayer')}
+              className={`mode-card ${selectedMode === 'multiplayer' ? 'mode-card--active-multi' : ''}`}
+            >
+              <span className="mode-card__kicker">Pronto</span>
+              <span className="mode-card__title">Multijugador</span>
+              <span className="mode-card__desc">Bloqueado temporalmente, estará disponible en una próxima actualización.</span>
+            </button>
+          </div>
+          {selectedMode === 'multiplayer' && (
+            <p className="mode-message mode-message--warn" style={{ marginTop: 0 }}>
+              El modo multijugador estará disponible pronto.
+            </p>
+          )}
+          {modeMessage && (
+            <p className="mode-message mode-message--error" style={{ marginTop: 0 }}>
+              {modeMessage}
+            </p>
+          )}
 
           <label htmlFor="nickname">Tu apodo</label>
           <input
@@ -757,8 +854,14 @@ function Overlay({
           fontSize: 13,
         }}
       >
-        {playerName} | {weapon.name} | Municion: {ammo}
+        {playerName} | {weapon.name} | Municion: {ammo} | Bots restantes: {botsRemaining}
       </div>
+
+      {botsRemaining === 0 && (
+        <div style={{ position: 'absolute', top: 54, left: 12, zIndex: 10, color: '#e9ffd7', background: 'rgba(22, 53, 31, 0.76)', border: '1px solid #5fb17e', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
+          Arena limpia. Has eliminado todos los bots de frutas.
+        </div>
+      )}
 
       {!paused && (
         <div style={{ position: 'absolute', bottom: 14, left: 14, zIndex: 10, color: '#dff7e6', fontSize: 12 }}>
@@ -806,12 +909,15 @@ export default function App() {
   const [play, setPlay] = useState(false);
   const [paused, setPaused] = useState(false);
   const [pointerLocked, setPointerLocked] = useState(false);
+  const [selectedMode, setSelectedMode] = useState('solo');
+  const [modeMessage, setModeMessage] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [draftName, setDraftName] = useState('');
   const [selectedWeaponId, setSelectedWeaponId] = useState(WEAPONS[0].id);
   const [weaponId, setWeaponId] = useState(WEAPONS[0].id);
   const [ammo, setAmmo] = useState(WEAPONS[0].ammo);
   const [bullets, setBullets] = useState([]);
+  const [bots, setBots] = useState([]);
   const ammoRef = useRef(WEAPONS[0].ammo);
 
   const playerPosRef = useRef({ x: 0, z: 0 });
@@ -917,11 +1023,19 @@ export default function App() {
     const cleanName = draftName.trim();
     if (!cleanName) return;
 
+    if (selectedMode !== 'solo') {
+      setModeMessage('Modo multijugador bloqueado por el momento.');
+      return;
+    }
+
+    setModeMessage('');
+
     setPlayerName(cleanName);
     setWeaponId(selectedWeaponId);
     const startAmmo = WEAPON_BY_ID[selectedWeaponId].ammo;
     ammoRef.current = startAmmo;
     setAmmo(startAmmo);
+    setBots(SOLO_BOTS_TEMPLATE.map((bot) => ({ ...bot })));
     setPlay(true);
     setPaused(false);
     window.focus();
@@ -939,10 +1053,12 @@ export default function App() {
     setPaused(false);
     setPlay(false);
     setBullets([]);
+    setBots([]);
     const resetAmmo = WEAPON_BY_ID[selectedWeaponId].ammo;
     ammoRef.current = resetAmmo;
     setAmmo(resetAmmo);
     setPlayerName('');
+    setModeMessage('');
   };
 
   const onShot = () => {
@@ -974,12 +1090,22 @@ export default function App() {
     playerPosRef.current.z = z;
   };
 
+  const onBotHits = (ids) => {
+    if (ids.length === 0) return;
+    const hitSet = new Set(ids);
+    setBots((prev) => prev.filter((bot) => !hitSet.has(bot.id)));
+  };
+
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#05070b', position: 'relative', overflow: 'hidden' }}>
       <Overlay
         play={play}
         paused={paused}
         pointerLocked={pointerLocked}
+        selectedMode={selectedMode}
+        setSelectedMode={setSelectedMode}
+        modeMessage={modeMessage}
+        botsRemaining={bots.length}
         playerName={playerName}
         weapon={weapon}
         ammo={ammo}
@@ -1003,7 +1129,7 @@ export default function App() {
             camera.lookAt(0, 1.7, 0);
           }}
         >
-          <PointerLockControls ref={controlsRef} enabled={play && !paused} />
+          {play && <PointerLockControls ref={controlsRef} enabled={!paused} />}
 
           <Sky sunPosition={[100, 20, 100]} />
           <Environment preset="city" />
@@ -1039,6 +1165,8 @@ export default function App() {
             orbTexture={orbTexture}
           />
 
+          <FruitBots bots={bots} />
+
           {play && (
             <>
               <PlayerController enabled={!paused} onPositionChange={onPositionChange} shotSignalRef={shotSignalRef} weaponColor={weapon.color} />
@@ -1046,7 +1174,7 @@ export default function App() {
             </>
           )}
 
-          <BulletLayer bullets={bullets} onExpireMany={removeBullets} />
+          <BulletLayer bullets={bullets} bots={bots} onExpireMany={removeBullets} onBotHits={onBotHits} />
         </Canvas>
       </KeyboardControls>
     </div>
