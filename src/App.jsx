@@ -52,16 +52,55 @@ const MULTIPLAYER_PREVIEW_PLAYERS = [
   { id: 'ally-2', name: 'Kiwi', x: -4.2, z: 4.6, color: '#ffd166' },
 ];
 const RADAR_TARGETS = MAP_OBSTACLES.map((obs) => ({ id: obs.id, x: obs.x, z: obs.z, color: obs.color }));
+const FRUIT_TYPES = ['banana', 'watermelon', 'coconut', 'lime'];
 const SOLO_BOTS_TEMPLATE = [
-  { id: 'bot-banana-1', fruit: 'banana', x: -8, z: -3, radius: 0.58 },
-  { id: 'bot-banana-2', fruit: 'banana', x: 7.2, z: -1.8, radius: 0.58 },
-  { id: 'bot-watermelon-1', fruit: 'watermelon', x: 0, z: -8.5, radius: 0.62 },
-  { id: 'bot-watermelon-2', fruit: 'watermelon', x: -1.4, z: 8.7, radius: 0.62 },
-  { id: 'bot-coconut-1', fruit: 'coconut', x: 8.7, z: 6.2, radius: 0.56 },
-  { id: 'bot-coconut-2', fruit: 'coconut', x: -7.2, z: 5.8, radius: 0.56 },
-  { id: 'bot-lime-1', fruit: 'lime', x: 2.8, z: 2.8, radius: 0.54 },
-  { id: 'bot-lime-2', fruit: 'lime', x: -3.2, z: -1.2, radius: 0.54 },
+  { id: 'bot-banana-1', fruit: 'banana', x: -8, z: -3, radius: 0.58, speed: 0.65, damage: 2 },
+  { id: 'bot-banana-2', fruit: 'banana', x: 7.2, z: -1.8, radius: 0.58, speed: 0.65, damage: 2 },
+  { id: 'bot-watermelon-1', fruit: 'watermelon', x: 0, z: -8.5, radius: 0.62, speed: 0.55, damage: 2 },
+  { id: 'bot-watermelon-2', fruit: 'watermelon', x: -1.4, z: 8.7, radius: 0.62, speed: 0.55, damage: 2 },
+  { id: 'bot-coconut-1', fruit: 'coconut', x: 8.7, z: 6.2, radius: 0.56, speed: 0.7, damage: 2 },
+  { id: 'bot-coconut-2', fruit: 'coconut', x: -7.2, z: 5.8, radius: 0.56, speed: 0.7, damage: 2 },
+  { id: 'bot-lime-1', fruit: 'lime', x: 2.8, z: 2.8, radius: 0.54, speed: 0.8, damage: 2 },
+  { id: 'bot-lime-2', fruit: 'lime', x: -3.2, z: -1.2, radius: 0.54, speed: 0.8, damage: 2 },
 ];
+
+function createWaveBots(count, waveNumber) {
+  const bots = [];
+  const maxRadius = WORLD_RADIUS - 1.2;
+
+  for (let i = 0; i < count; i += 1) {
+    let x = 0;
+    let z = 0;
+    let attempts = 0;
+
+    while (attempts < 22) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = 3 + Math.random() * (maxRadius - 3);
+      x = Math.cos(angle) * r;
+      z = Math.sin(angle) * r;
+
+      const tooClose = bots.some((b) => Math.hypot(b.x - x, b.z - z) < 1.4);
+      if (!tooClose) break;
+      attempts += 1;
+    }
+
+    const fruit = FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
+    const radius = fruit === 'watermelon' ? 0.62 : fruit === 'banana' ? 0.58 : fruit === 'coconut' ? 0.56 : 0.54;
+    const speed = fruit === 'watermelon' ? 0.55 : fruit === 'banana' ? 0.65 : fruit === 'coconut' ? 0.7 : 0.8;
+
+    bots.push({
+      id: `wave-${waveNumber}-bot-${i}-${Math.random().toString(16).slice(2, 7)}`,
+      fruit,
+      x,
+      z,
+      radius,
+      speed,
+      damage: 2,
+    });
+  }
+
+  return bots;
+}
 
 function createGroundTexture() {
   const size = 256;
@@ -497,6 +536,69 @@ function BulletLayer({ bullets, bots, onExpireMany, onBotHits }) {
   );
 }
 
+function FruitBotUnit({ bot, style }) {
+  const root = useRef(null);
+  const leftArm = useRef(null);
+  const rightArm = useRef(null);
+
+  useFrame((state, delta) => {
+    if (!root.current) return;
+
+    const targetX = bot.x;
+    const targetZ = bot.z;
+    const dx = targetX - root.current.position.x;
+    const dz = targetZ - root.current.position.z;
+    const dist = Math.hypot(dx, dz);
+
+    root.current.position.x += dx * Math.min(1, delta * 8);
+    root.current.position.z += dz * Math.min(1, delta * 8);
+
+    if (dist > 0.002) {
+      const targetYaw = Math.atan2(dx, dz);
+      root.current.rotation.y += (targetYaw - root.current.rotation.y) * Math.min(1, delta * 10);
+    }
+
+    const movingFactor = dist > 0.008 ? 1 : 0.2;
+    const swing = Math.sin(state.clock.elapsedTime * (5 + bot.speed * 3) + bot.x * 0.23) * 0.35 * movingFactor;
+    if (leftArm.current) leftArm.current.rotation.x = swing;
+    if (rightArm.current) rightArm.current.rotation.x = -swing;
+  });
+
+  return (
+    <group ref={root} position={[bot.x, 0, bot.z]}>
+      <mesh position={[0, 0.2, 0]}>
+        <cylinderGeometry args={[bot.radius * 0.95, bot.radius * 1.1, 0.24, 14]} />
+        <meshStandardMaterial color="#2f3f52" roughness={0.84} metalness={0.14} />
+      </mesh>
+
+      <mesh position={[0, 0.78, 0]}>
+        <cylinderGeometry args={[bot.radius * 0.46, bot.radius * 0.52, 0.72, 14]} />
+        <meshStandardMaterial color={style.detail} roughness={0.62} metalness={0.08} />
+      </mesh>
+
+      <mesh position={[0, 1.28, 0]}>
+        <sphereGeometry args={[bot.radius, 18, 18]} />
+        <meshStandardMaterial color={style.body} emissive={style.detail} emissiveIntensity={0.1} roughness={0.44} metalness={0.08} />
+      </mesh>
+
+      <mesh ref={leftArm} position={[bot.radius * 0.72, 0.88, 0]}>
+        <sphereGeometry args={[bot.radius * 0.2, 10, 10]} />
+        <meshStandardMaterial color={style.body} roughness={0.5} metalness={0.06} />
+      </mesh>
+
+      <mesh ref={rightArm} position={[-bot.radius * 0.72, 0.88, 0]}>
+        <sphereGeometry args={[bot.radius * 0.2, 10, 10]} />
+        <meshStandardMaterial color={style.body} roughness={0.5} metalness={0.06} />
+      </mesh>
+
+      <mesh position={[0, 1.78, 0]} rotation={[0.6, 0, 0]}>
+        <coneGeometry args={[0.16, 0.28, 10]} />
+        <meshStandardMaterial color={style.leaf} roughness={0.7} metalness={0.05} />
+      </mesh>
+    </group>
+  );
+}
+
 function FruitBots({ bots }) {
   const palette = {
     banana: { body: '#ffd34d', detail: '#7b4f1d', leaf: '#74b06f' },
@@ -509,25 +611,69 @@ function FruitBots({ bots }) {
     <>
       {bots.map((bot) => {
         const style = palette[bot.fruit] ?? palette.lime;
-        return (
-          <group key={bot.id} position={[bot.x, 0, bot.z]}>
-            <mesh position={[0, 0.2, 0]}>
-              <cylinderGeometry args={[bot.radius * 0.95, bot.radius * 1.1, 0.24, 14]} />
-              <meshStandardMaterial color="#2f3f52" roughness={0.84} metalness={0.14} />
-            </mesh>
-            <mesh position={[0, 1.2, 0]}>
-              <sphereGeometry args={[bot.radius, 18, 18]} />
-              <meshStandardMaterial color={style.body} emissive={style.detail} emissiveIntensity={0.1} roughness={0.44} metalness={0.08} />
-            </mesh>
-            <mesh position={[0, 1.78, 0]} rotation={[0.6, 0, 0]}>
-              <coneGeometry args={[0.16, 0.28, 10]} />
-              <meshStandardMaterial color={style.leaf} roughness={0.7} metalness={0.05} />
-            </mesh>
-          </group>
-        );
+        return <FruitBotUnit key={bot.id} bot={bot} style={style} />;
       })}
     </>
   );
+}
+
+function BotDirector({ active, bots, setBots, playerPosRef, onDamagePlayer }) {
+  const lastAttackByBot = useRef(new Map());
+
+  useEffect(() => {
+    if (!active) return undefined;
+
+    const id = window.setInterval(() => {
+      const px = playerPosRef.current.x;
+      const pz = playerPosRef.current.z;
+      let pendingDamage = 0;
+      const now = performance.now();
+
+      setBots((prev) => prev.map((bot) => {
+        const dx = px - bot.x;
+        const dz = pz - bot.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist <= 0.0001) return bot;
+
+        const attackRange = bot.radius + 0.75;
+        if (dist <= attackRange) {
+          const lastAttack = lastAttackByBot.current.get(bot.id) ?? 0;
+          if (now - lastAttack >= 900) {
+            pendingDamage += 2;
+            lastAttackByBot.current.set(bot.id, now);
+          }
+          return bot;
+        }
+
+        const step = Math.min(bot.speed * 0.12, Math.max(0, dist - attackRange));
+        const nx = bot.x + (dx / dist) * step;
+        const nz = bot.z + (dz / dist) * step;
+
+        const planar = Math.hypot(nx, nz);
+        if (planar > WORLD_RADIUS - 0.7) {
+          const inv = (WORLD_RADIUS - 0.7) / planar;
+          return { ...bot, x: nx * inv, z: nz * inv };
+        }
+
+        return { ...bot, x: nx, z: nz };
+      }));
+
+      if (pendingDamage > 0) {
+        onDamagePlayer(pendingDamage);
+      }
+    }, 120);
+
+    return () => window.clearInterval(id);
+  }, [active, playerPosRef, setBots, onDamagePlayer]);
+
+  useEffect(() => {
+    const alive = new Set(bots.map((bot) => bot.id));
+    lastAttackByBot.current.forEach((_, id) => {
+      if (!alive.has(id)) lastAttackByBot.current.delete(id);
+    });
+  }, [bots]);
+
+  return null;
 }
 
 function ShootingSystem({ enabled, weapon, onSpawnBullet, onShot }) {
@@ -736,12 +882,14 @@ function Overlay({
   setSelectedMode,
   modeMessage,
   botsRemaining,
+  playerHealth,
   playerName,
   weapon,
   ammo,
   onStart,
   onContinue,
   onBackToStart,
+  onRestartGame,
   selectedWeaponId,
   setSelectedWeaponId,
   draftName,
@@ -854,12 +1002,18 @@ function Overlay({
           fontSize: 13,
         }}
       >
-        {playerName} | {weapon.name} | Municion: {ammo} | Bots restantes: {botsRemaining}
+        {playerName} | {weapon.name} | Municion: {ammo} | Vida: {playerHealth} | Bots restantes: {botsRemaining}
       </div>
 
       {botsRemaining === 0 && (
         <div style={{ position: 'absolute', top: 54, left: 12, zIndex: 10, color: '#e9ffd7', background: 'rgba(22, 53, 31, 0.76)', border: '1px solid #5fb17e', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
           Arena limpia. Has eliminado todos los bots de frutas.
+        </div>
+      )}
+
+      {playerHealth <= 0 && (
+        <div style={{ position: 'absolute', top: 54, left: 12, zIndex: 10, color: '#ffe2e2', background: 'rgba(88, 24, 24, 0.8)', border: '1px solid #d07b7b', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
+          Te han derrotado. Pulsa ESC y vuelve al inicio para reintentar.
         </div>
       )}
 
@@ -893,7 +1047,7 @@ function Overlay({
             <button
               type="button"
               className="pause-button"
-              onClick={() => window.location.reload()}
+              onClick={onRestartGame}
             >
               Reiniciar Juego
             </button>
@@ -906,6 +1060,8 @@ function Overlay({
 
 export default function App() {
   const controlsRef = useRef(null);
+  const waveRef = useRef(1);
+  const waveSpawnTimeoutRef = useRef(null);
   const [play, setPlay] = useState(false);
   const [paused, setPaused] = useState(false);
   const [pointerLocked, setPointerLocked] = useState(false);
@@ -916,6 +1072,7 @@ export default function App() {
   const [selectedWeaponId, setSelectedWeaponId] = useState(WEAPONS[0].id);
   const [weaponId, setWeaponId] = useState(WEAPONS[0].id);
   const [ammo, setAmmo] = useState(WEAPONS[0].ammo);
+  const [playerHealth, setPlayerHealth] = useState(100);
   const [bullets, setBullets] = useState([]);
   const [bots, setBots] = useState([]);
   const ammoRef = useRef(WEAPONS[0].ammo);
@@ -950,8 +1107,30 @@ export default function App() {
     controlsRef.current?.lock();
   };
 
+  const forceCursorDefault = () => {
+    document.body.style.cursor = 'default';
+    document.documentElement.style.cursor = 'default';
+  };
+
   const unlockPointer = () => {
     controlsRef.current?.unlock();
+    if (document.pointerLockElement && document.exitPointerLock) {
+      document.exitPointerLock();
+    }
+    forceCursorDefault();
+  };
+
+  const ensureMenuCursorVisible = () => {
+    forceCursorDefault();
+    if (document.pointerLockElement && document.exitPointerLock) {
+      document.exitPointerLock();
+    }
+    window.setTimeout(() => {
+      forceCursorDefault();
+      if (document.pointerLockElement && document.exitPointerLock) {
+        document.exitPointerLock();
+      }
+    }, 40);
   };
 
   const keyboardMap = useMemo(
@@ -998,6 +1177,9 @@ export default function App() {
     const onPointerLockChange = () => {
       const locked = Boolean(document.pointerLockElement);
       setPointerLocked(locked);
+      if (!locked) {
+        forceCursorDefault();
+      }
       if (play && !locked && !paused) {
         setPaused(true);
       }
@@ -1014,8 +1196,10 @@ export default function App() {
 
   useEffect(() => {
     document.body.style.cursor = play && !paused ? 'none' : 'default';
+    document.documentElement.style.cursor = play && !paused ? 'none' : 'default';
     return () => {
       document.body.style.cursor = 'default';
+      document.documentElement.style.cursor = 'default';
     };
   }, [play, paused]);
 
@@ -1035,6 +1219,12 @@ export default function App() {
     const startAmmo = WEAPON_BY_ID[selectedWeaponId].ammo;
     ammoRef.current = startAmmo;
     setAmmo(startAmmo);
+    setPlayerHealth(100);
+    waveRef.current = 1;
+    if (waveSpawnTimeoutRef.current) {
+      window.clearTimeout(waveSpawnTimeoutRef.current);
+      waveSpawnTimeoutRef.current = null;
+    }
     setBots(SOLO_BOTS_TEMPLATE.map((bot) => ({ ...bot })));
     setPlay(true);
     setPaused(false);
@@ -1054,11 +1244,37 @@ export default function App() {
     setPlay(false);
     setBullets([]);
     setBots([]);
+    setPlayerHealth(100);
+    if (waveSpawnTimeoutRef.current) {
+      window.clearTimeout(waveSpawnTimeoutRef.current);
+      waveSpawnTimeoutRef.current = null;
+    }
+    waveRef.current = 1;
     const resetAmmo = WEAPON_BY_ID[selectedWeaponId].ammo;
     ammoRef.current = resetAmmo;
     setAmmo(resetAmmo);
     setPlayerName('');
     setModeMessage('');
+    ensureMenuCursorVisible();
+  };
+
+  const onRestartGame = () => {
+    unlockPointer();
+    setPaused(false);
+    setPlay(true);
+    setBullets([]);
+    setPlayerHealth(100);
+    waveRef.current = 1;
+    if (waveSpawnTimeoutRef.current) {
+      window.clearTimeout(waveSpawnTimeoutRef.current);
+      waveSpawnTimeoutRef.current = null;
+    }
+    const resetAmmo = WEAPON_BY_ID[weaponId].ammo;
+    ammoRef.current = resetAmmo;
+    setAmmo(resetAmmo);
+    setBots(SOLO_BOTS_TEMPLATE.map((bot) => ({ ...bot })));
+    window.focus();
+    requestAnimationFrame(() => lockPointer());
   };
 
   const onShot = () => {
@@ -1096,6 +1312,37 @@ export default function App() {
     setBots((prev) => prev.filter((bot) => !hitSet.has(bot.id)));
   };
 
+  const onDamagePlayer = (amount) => {
+    if (!play || paused) return;
+    setPlayerHealth((current) => Math.max(0, current - amount));
+  };
+
+  useEffect(() => {
+    if (!play) return;
+    if (playerHealth > 0) return;
+    unlockPointer();
+    setPaused(true);
+  }, [play, playerHealth]);
+
+  useEffect(() => {
+    if (!play || paused || selectedMode !== 'solo' || playerHealth <= 0) return;
+    if (bots.length > 0) return;
+    if (waveSpawnTimeoutRef.current) return;
+
+    waveRef.current += 1;
+    waveSpawnTimeoutRef.current = window.setTimeout(() => {
+      setBots(createWaveBots(5, waveRef.current));
+      waveSpawnTimeoutRef.current = null;
+    }, 850);
+
+    return () => {
+      if (waveSpawnTimeoutRef.current) {
+        window.clearTimeout(waveSpawnTimeoutRef.current);
+        waveSpawnTimeoutRef.current = null;
+      }
+    };
+  }, [play, paused, selectedMode, playerHealth, bots.length]);
+
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#05070b', position: 'relative', overflow: 'hidden' }}>
       <Overlay
@@ -1106,12 +1353,14 @@ export default function App() {
         setSelectedMode={setSelectedMode}
         modeMessage={modeMessage}
         botsRemaining={bots.length}
+        playerHealth={playerHealth}
         playerName={playerName}
         weapon={weapon}
         ammo={ammo}
         onStart={onStart}
         onContinue={onContinue}
         onBackToStart={onBackToStart}
+        onRestartGame={onRestartGame}
         selectedWeaponId={selectedWeaponId}
         setSelectedWeaponId={setSelectedWeaponId}
         draftName={draftName}
@@ -1166,6 +1415,7 @@ export default function App() {
           />
 
           <FruitBots bots={bots} />
+          <BotDirector active={play && !paused && selectedMode === 'solo' && playerHealth > 0 && bots.length > 0} bots={bots} setBots={setBots} playerPosRef={playerPosRef} onDamagePlayer={onDamagePlayer} />
 
           {play && (
             <>
