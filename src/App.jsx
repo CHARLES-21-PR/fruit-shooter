@@ -1175,6 +1175,7 @@ function Overlay({
   ammo,
   remotePlayers,
   socketId,
+  connectionStatus,
   onStart,
   onContinue,
   onBackToStart,
@@ -1770,6 +1771,7 @@ export default function App() {
         ammo={ammo}
         remotePlayers={remotePlayers}
         socketId={socketId}
+        connectionStatus={connectionStatus}
         onStart={onStart}
         onContinue={onContinue}
         onBackToStart={onBackToStart}
