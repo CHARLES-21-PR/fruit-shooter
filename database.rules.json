@@ -1,20 +1,7 @@
 {
+  /* Visit https://firebase.google.com/docs/database/security to learn more about security rules. */
   "rules": {
-    "rooms": {
-      "$roomId": {
-        "players": {
-          "$playerId": {
-            ".read": true,
-            ".write": true
-          }
-        },
-        "slots": {
-          "$slotIndex": {
-            ".read": true,
-            ".write": true
-          }
-        }
-      }
-    }
+    ".read": false,
+    ".write": false
   }
 }
