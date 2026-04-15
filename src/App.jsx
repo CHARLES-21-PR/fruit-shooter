@@ -1336,10 +1336,17 @@ function Overlay({
                 </div>
               );
             })}
-            {remotePlayers.length === 0 && (
-              <div style={{ fontSize: 12, opacity: 0.75 }}>
-                {connectionStatus === 'connected' ? 'Esperando jugadores...' : 'Conectando sala...'}
-              </div>
+            {remotePlayers.length === 0 && connectionStatus === 'connected' && (
+              <div style={{ fontSize: 12, opacity: 0.75 }}>Esperando jugadores...</div>
+            )}
+            {remotePlayers.length === 0 && (connectionStatus === 'connecting' || connectionStatus === 'idle' || connectionStatus === 'disconnected') && (
+              <div style={{ fontSize: 12, opacity: 0.75 }}>Conectando sala...</div>
+            )}
+            {remotePlayers.length === 0 && connectionStatus === 'error' && (
+              <div style={{ fontSize: 12, opacity: 0.75 }}>Revisa que el servidor Socket.io esté activo.</div>
+            )}
+            {remotePlayers.length === 0 && connectionStatus === 'full' && (
+              <div style={{ fontSize: 12, opacity: 0.75 }}>La sala ya tiene 4 jugadores.</div>
             )}
           </div>
         </div>
