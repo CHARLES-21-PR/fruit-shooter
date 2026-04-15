@@ -54,14 +54,14 @@ const MULTIPLAYER_PREVIEW_PLAYERS = [
 const RADAR_TARGETS = MAP_OBSTACLES.map((obs) => ({ id: obs.id, x: obs.x, z: obs.z, color: obs.color }));
 const FRUIT_TYPES = ['banana', 'watermelon', 'coconut', 'lime'];
 const SOLO_BOTS_TEMPLATE = [
-  { id: 'bot-banana-1', fruit: 'banana', x: -8, z: -3, radius: 0.58, speed: 0.65, damage: 2 },
-  { id: 'bot-banana-2', fruit: 'banana', x: 7.2, z: -1.8, radius: 0.58, speed: 0.65, damage: 2 },
-  { id: 'bot-watermelon-1', fruit: 'watermelon', x: 0, z: -8.5, radius: 0.62, speed: 0.55, damage: 2 },
-  { id: 'bot-watermelon-2', fruit: 'watermelon', x: -1.4, z: 8.7, radius: 0.62, speed: 0.55, damage: 2 },
-  { id: 'bot-coconut-1', fruit: 'coconut', x: 8.7, z: 6.2, radius: 0.56, speed: 0.7, damage: 2 },
-  { id: 'bot-coconut-2', fruit: 'coconut', x: -7.2, z: 5.8, radius: 0.56, speed: 0.7, damage: 2 },
-  { id: 'bot-lime-1', fruit: 'lime', x: 2.8, z: 2.8, radius: 0.54, speed: 0.8, damage: 2 },
-  { id: 'bot-lime-2', fruit: 'lime', x: -3.2, z: -1.2, radius: 0.54, speed: 0.8, damage: 2 },
+  { id: 'bot-banana-1', fruit: 'banana', x: -8, z: -3, radius: 0.58, speed: 0.65, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
+  { id: 'bot-banana-2', fruit: 'banana', x: 7.2, z: -1.8, radius: 0.58, speed: 0.65, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
+  { id: 'bot-watermelon-1', fruit: 'watermelon', x: 0, z: -8.5, radius: 0.62, speed: 0.55, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
+  { id: 'bot-watermelon-2', fruit: 'watermelon', x: -1.4, z: 8.7, radius: 0.62, speed: 0.55, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
+  { id: 'bot-coconut-1', fruit: 'coconut', x: 8.7, z: 6.2, radius: 0.56, speed: 0.7, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
+  { id: 'bot-coconut-2', fruit: 'coconut', x: -7.2, z: 5.8, radius: 0.56, speed: 0.7, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
+  { id: 'bot-lime-1', fruit: 'lime', x: 2.8, z: 2.8, radius: 0.54, speed: 0.8, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
+  { id: 'bot-lime-2', fruit: 'lime', x: -3.2, z: -1.2, radius: 0.54, speed: 0.8, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
 ];
 
 function createWaveBots(count, waveNumber) {
@@ -96,6 +96,9 @@ function createWaveBots(count, waveNumber) {
       radius,
       speed,
       damage: 2,
+      hp: 100,
+      maxHp: 100,
+      hitFlashUntil: 0,
     });
   }
 
@@ -476,7 +479,7 @@ function BulletLayer({ bullets, bots, onExpireMany, onBotHits }) {
   useFrame((_, delta) => {
     if (bullets.length === 0) return;
     const expired = [];
-    const hitBotIds = new Set();
+    const hitBotCounts = new Map();
 
     for (let i = 0; i < bullets.length; i += 1) {
       const bullet = bullets[i];
@@ -497,7 +500,7 @@ function BulletLayer({ bullets, bots, onExpireMany, onBotHits }) {
         const dz = ref.position.z - bot.z;
         const hitRadius = bot.radius + bullet.size;
         if (dx * dx + dy * dy + dz * dz <= hitRadius * hitRadius) {
-          hitBotIds.add(bot.id);
+          hitBotCounts.set(bot.id, (hitBotCounts.get(bot.id) ?? 0) + 1);
           expired.push(bullet.id);
           break;
         }
@@ -512,8 +515,8 @@ function BulletLayer({ bullets, bots, onExpireMany, onBotHits }) {
       onExpireMany(expired);
     }
 
-    if (hitBotIds.size > 0) {
-      onBotHits(Array.from(hitBotIds));
+    if (hitBotCounts.size > 0) {
+      onBotHits(Object.fromEntries(hitBotCounts));
     }
   });
 
@@ -540,6 +543,9 @@ function FruitBotUnit({ bot, style }) {
   const root = useRef(null);
   const leftArm = useRef(null);
   const rightArm = useRef(null);
+  const leftFoot = useRef(null);
+  const rightFoot = useRef(null);
+  const hpBillboard = useRef(null);
 
   useFrame((state, delta) => {
     if (!root.current) return;
@@ -562,7 +568,25 @@ function FruitBotUnit({ bot, style }) {
     const swing = Math.sin(state.clock.elapsedTime * (5 + bot.speed * 3) + bot.x * 0.23) * 0.35 * movingFactor;
     if (leftArm.current) leftArm.current.rotation.x = swing;
     if (rightArm.current) rightArm.current.rotation.x = -swing;
+
+    const step = Math.sin(state.clock.elapsedTime * (5 + bot.speed * 3) + bot.z * 0.19) * 0.26 * movingFactor;
+    if (leftFoot.current) {
+      leftFoot.current.position.y = 0.22 + Math.max(0, step * 0.12);
+      leftFoot.current.rotation.x = -step * 0.8;
+    }
+    if (rightFoot.current) {
+      rightFoot.current.position.y = 0.22 + Math.max(0, -step * 0.12);
+      rightFoot.current.rotation.x = step * 0.8;
+    }
+
+    if (hpBillboard.current) {
+      hpBillboard.current.quaternion.copy(state.camera.quaternion);
+    }
   });
+
+  const hpRatio = THREE.MathUtils.clamp((bot.hp ?? 0) / Math.max(1, bot.maxHp ?? 100), 0, 1);
+  const isHit = (bot.hitFlashUntil ?? 0) > performance.now();
+  const bodyColor = isHit ? '#ff5f5f' : style.body;
 
   return (
     <group ref={root} position={[bot.x, 0, bot.z]}>
@@ -578,7 +602,7 @@ function FruitBotUnit({ bot, style }) {
 
       <mesh position={[0, 1.28, 0]}>
         <sphereGeometry args={[bot.radius, 18, 18]} />
-        <meshStandardMaterial color={style.body} emissive={style.detail} emissiveIntensity={0.1} roughness={0.44} metalness={0.08} />
+        <meshStandardMaterial color={bodyColor} emissive={isHit ? '#9a2020' : style.detail} emissiveIntensity={isHit ? 0.5 : 0.1} roughness={0.44} metalness={0.08} />
       </mesh>
 
       <mesh ref={leftArm} position={[bot.radius * 0.72, 0.88, 0]}>
@@ -591,10 +615,31 @@ function FruitBotUnit({ bot, style }) {
         <meshStandardMaterial color={style.body} roughness={0.5} metalness={0.06} />
       </mesh>
 
+      <mesh ref={leftFoot} position={[bot.radius * 0.35, 0.22, 0.08]}>
+        <sphereGeometry args={[bot.radius * 0.22, 10, 10]} />
+        <meshStandardMaterial color={style.detail} roughness={0.55} metalness={0.08} />
+      </mesh>
+
+      <mesh ref={rightFoot} position={[-bot.radius * 0.35, 0.22, 0.08]}>
+        <sphereGeometry args={[bot.radius * 0.22, 10, 10]} />
+        <meshStandardMaterial color={style.detail} roughness={0.55} metalness={0.08} />
+      </mesh>
+
       <mesh position={[0, 1.78, 0]} rotation={[0.6, 0, 0]}>
         <coneGeometry args={[0.16, 0.28, 10]} />
         <meshStandardMaterial color={style.leaf} roughness={0.7} metalness={0.05} />
       </mesh>
+
+      <group ref={hpBillboard} position={[0, 2.28, 0]}>
+        <mesh>
+          <planeGeometry args={[1.1, 0.14]} />
+          <meshBasicMaterial color="#2f1f1f" transparent opacity={0.9} depthWrite={false} />
+        </mesh>
+        <mesh position={[-(1.1 * (1 - hpRatio)) / 2, 0, 0.001]}>
+          <planeGeometry args={[1.1 * hpRatio, 0.1]} />
+          <meshBasicMaterial color={hpRatio > 0.5 ? '#55d775' : hpRatio > 0.25 ? '#f2bf4f' : '#ff6767'} transparent opacity={0.95} depthWrite={false} />
+        </mesh>
+      </group>
     </group>
   );
 }
@@ -1005,6 +1050,10 @@ function Overlay({
         {playerName} | {weapon.name} | Municion: {ammo} | Vida: {playerHealth} | Bots restantes: {botsRemaining}
       </div>
 
+      <div style={{ position: 'absolute', top: 45, left: 12, zIndex: 10, width: 240, height: 10, borderRadius: 999, background: 'rgba(30, 42, 60, 0.85)', border: '1px solid rgba(160, 190, 220, 0.4)', overflow: 'hidden' }}>
+        <div style={{ width: `${Math.max(0, Math.min(100, playerHealth))}%`, height: '100%', background: playerHealth > 55 ? 'linear-gradient(90deg, #43c77f, #71dd95)' : playerHealth > 25 ? 'linear-gradient(90deg, #d8a644, #f0c06a)' : 'linear-gradient(90deg, #c14949, #eb6464)', transition: 'width 120ms linear' }} />
+      </div>
+
       {botsRemaining === 0 && (
         <div style={{ position: 'absolute', top: 54, left: 12, zIndex: 10, color: '#e9ffd7', background: 'rgba(22, 53, 31, 0.76)', border: '1px solid #5fb17e', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
           Arena limpia. Has eliminado todos los bots de frutas.
@@ -1306,10 +1355,23 @@ export default function App() {
     playerPosRef.current.z = z;
   };
 
-  const onBotHits = (ids) => {
-    if (ids.length === 0) return;
-    const hitSet = new Set(ids);
-    setBots((prev) => prev.filter((bot) => !hitSet.has(bot.id)));
+  const onBotHits = (hitMap) => {
+    const entries = Object.entries(hitMap ?? {});
+    if (entries.length === 0) return;
+
+    setBots((prev) => prev
+      .map((bot) => {
+        const hits = hitMap[bot.id] ?? 0;
+        if (hits <= 0) return bot;
+        const damagePerHit = 34;
+        const nextHp = Math.max(0, (bot.hp ?? bot.maxHp ?? 100) - hits * damagePerHit);
+        return {
+          ...bot,
+          hp: nextHp,
+          hitFlashUntil: performance.now() + 120,
+        };
+      })
+      .filter((bot) => (bot.hp ?? 0) > 0));
   };
 
   const onDamagePlayer = (amount) => {
