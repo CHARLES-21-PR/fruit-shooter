@@ -1,0 +1,20 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        "players": {
+          "$playerId": {
+            ".read": true,
+            ".write": true
+          }
+        },
+        "slots": {
+          "$slotIndex": {
+            ".read": true,
+            ".write": true
+          }
+        }
+      }
+    }
+  }
+}

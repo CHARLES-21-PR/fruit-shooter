@@ -17,8 +17,24 @@ If you are developing a production application, we recommend using TypeScript wi
 
 ## Multiplayer
 
-El modo multijugador usa Socket.io y requiere un servidor Node.js aparte.
+El modo multijugador usa Firebase Realtime Database.
 
-- Ejecuta el backend con `npm run server`
-- Apunta el cliente a ese servidor con `VITE_SOCKET_URL=http://localhost:3001`
-- El servidor limita la arena a 4 jugadores
+### Variables de entorno
+
+Crea un archivo `.env.local` con estas variables:
+
+```bash
+VITE_FIREBASE_API_KEY=tu_api_key
+VITE_FIREBASE_AUTH_DOMAIN=tu_proyecto.firebaseapp.com
+VITE_FIREBASE_DATABASE_URL=https://tu_proyecto-default-rtdb.firebaseio.com
+VITE_FIREBASE_PROJECT_ID=tu_proyecto
+VITE_FIREBASE_APP_ID=tu_app_id
+VITE_FIREBASE_ROOM_ID=arena-main
+```
+
+### Estructura
+
+- La sala admite hasta 4 jugadores.
+- El cliente reserva un slot libre en Realtime Database.
+- Si la conexión cae, Firebase limpia la presencia del jugador.
+- El frontend de Vercel puede apuntar directamente a Firebase, sin servidor Node aparte.

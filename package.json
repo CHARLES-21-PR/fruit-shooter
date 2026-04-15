@@ -11,10 +11,12 @@
     "server": "node server.js"
   },
   "dependencies": {
+    "@dataconnect/generated": "file:src/dataconnect-generated",
     "@react-three/cannon": "^6.6.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.0",
     "express": "^5.2.1",
+    "firebase": "^12.12.0",
     "lucide-react": "^1.8.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
