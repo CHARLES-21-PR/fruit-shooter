@@ -1076,7 +1076,53 @@ function Overlay({
 
       {playerHealth <= 0 && (
         <div style={{ position: 'absolute', top: 54, left: 12, zIndex: 10, color: '#ffe2e2', background: 'rgba(88, 24, 24, 0.8)', border: '1px solid #d07b7b', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
-          Te han derrotado. Pulsa ESC y vuelve al inicio para reintentar.
+          Te han derrotado. Puedes jugar de nuevo ahora.
+        </div>
+      )}
+
+      {playerHealth <= 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 40,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'auto',
+          }}
+        >
+          <div
+            style={{
+              minWidth: 260,
+              padding: '18px 24px',
+              borderRadius: 14,
+              border: '1px solid rgba(255, 160, 160, 0.45)',
+              background: 'linear-gradient(180deg, rgba(82, 20, 20, 0.82), rgba(43, 12, 12, 0.86))',
+              boxShadow: '0 16px 36px rgba(0, 0, 0, 0.48)',
+              textAlign: 'center',
+              color: '#ffe3e3',
+            }}
+          >
+            <div style={{ fontSize: 40, fontWeight: 900, lineHeight: 1, letterSpacing: 1.2 }}>PERDISTE</div>
+            <div style={{ marginTop: 8, fontSize: 13, opacity: 0.9 }}>Elige una opcion para continuar.</div>
+            <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
+              <button
+                type="button"
+                className="pause-button pause-button--primary"
+                onClick={onRestartGame}
+              >
+                Jugar de Nuevo
+              </button>
+              <button
+                type="button"
+                className="pause-button"
+                onClick={onBackToStart}
+              >
+                Volver al Inicio
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1088,7 +1134,7 @@ function Overlay({
 
       {!paused && <MiniMapRadar playerPosRef={playerPosRef} bots={bots} />}
 
-      {paused && (
+      {paused && playerHealth > 0 && (
         <div className="pause-menu" style={{ zIndex: 25 }}>
           <div className="pause-card" style={{ width: 'min(90vw, 460px)' }}>
             <h2>Juego en Pausa</h2>
