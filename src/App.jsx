@@ -53,14 +53,14 @@ const MULTIPLAYER_PREVIEW_PLAYERS = [
 ];
 const FRUIT_TYPES = ['banana', 'watermelon', 'coconut', 'lime'];
 const SOLO_BOTS_TEMPLATE = [
-  { id: 'bot-banana-1', fruit: 'banana', x: -8, z: -3, radius: 0.58, speed: 0.65, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
-  { id: 'bot-banana-2', fruit: 'banana', x: 7.2, z: -1.8, radius: 0.58, speed: 0.65, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
-  { id: 'bot-watermelon-1', fruit: 'watermelon', x: 0, z: -8.5, radius: 0.62, speed: 0.55, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
-  { id: 'bot-watermelon-2', fruit: 'watermelon', x: -1.4, z: 8.7, radius: 0.62, speed: 0.55, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
-  { id: 'bot-coconut-1', fruit: 'coconut', x: 8.7, z: 6.2, radius: 0.56, speed: 0.7, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
-  { id: 'bot-coconut-2', fruit: 'coconut', x: -7.2, z: 5.8, radius: 0.56, speed: 0.7, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
-  { id: 'bot-lime-1', fruit: 'lime', x: 2.8, z: 2.8, radius: 0.54, speed: 0.8, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
-  { id: 'bot-lime-2', fruit: 'lime', x: -3.2, z: -1.2, radius: 0.54, speed: 0.8, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0 },
+  { id: 'bot-banana-1', fruit: 'banana', x: -8, z: -3, radius: 0.58, speed: 0.65, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0, attackRange: 7.4, attackCooldownMs: 1200, bulletSpeed: 12, spawnStartedAt: 0, spawnDuration: 780 },
+  { id: 'bot-banana-2', fruit: 'banana', x: 7.2, z: -1.8, radius: 0.58, speed: 0.65, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0, attackRange: 7.4, attackCooldownMs: 1200, bulletSpeed: 12, spawnStartedAt: 0, spawnDuration: 780 },
+  { id: 'bot-watermelon-1', fruit: 'watermelon', x: 0, z: -8.5, radius: 0.62, speed: 0.55, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0, attackRange: 7.8, attackCooldownMs: 1300, bulletSpeed: 11, spawnStartedAt: 0, spawnDuration: 780 },
+  { id: 'bot-watermelon-2', fruit: 'watermelon', x: -1.4, z: 8.7, radius: 0.62, speed: 0.55, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0, attackRange: 7.8, attackCooldownMs: 1300, bulletSpeed: 11, spawnStartedAt: 0, spawnDuration: 780 },
+  { id: 'bot-coconut-1', fruit: 'coconut', x: 8.7, z: 6.2, radius: 0.56, speed: 0.7, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0, attackRange: 7.2, attackCooldownMs: 1150, bulletSpeed: 12, spawnStartedAt: 0, spawnDuration: 780 },
+  { id: 'bot-coconut-2', fruit: 'coconut', x: -7.2, z: 5.8, radius: 0.56, speed: 0.7, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0, attackRange: 7.2, attackCooldownMs: 1150, bulletSpeed: 12, spawnStartedAt: 0, spawnDuration: 780 },
+  { id: 'bot-lime-1', fruit: 'lime', x: 2.8, z: 2.8, radius: 0.54, speed: 0.8, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0, attackRange: 7.1, attackCooldownMs: 1000, bulletSpeed: 13, spawnStartedAt: 0, spawnDuration: 780 },
+  { id: 'bot-lime-2', fruit: 'lime', x: -3.2, z: -1.2, radius: 0.54, speed: 0.8, damage: 2, hp: 100, maxHp: 100, hitFlashUntil: 0, attackRange: 7.1, attackCooldownMs: 1000, bulletSpeed: 13, spawnStartedAt: 0, spawnDuration: 780 },
 ];
 
 function createWaveBots(count, waveNumber) {
@@ -98,10 +98,23 @@ function createWaveBots(count, waveNumber) {
       hp: 100,
       maxHp: 100,
       hitFlashUntil: 0,
+      attackRange: fruit === 'watermelon' ? 7.8 : fruit === 'banana' ? 7.4 : fruit === 'coconut' ? 7.2 : 7.1,
+      attackCooldownMs: fruit === 'watermelon' ? 1300 : fruit === 'banana' ? 1200 : fruit === 'coconut' ? 1150 : 1000,
+      bulletSpeed: fruit === 'watermelon' ? 11 : fruit === 'banana' ? 12 : fruit === 'coconut' ? 12 : 13,
+      spawnStartedAt: 0,
+      spawnDuration: 780,
     });
   }
 
   return bots;
+}
+
+function stampBotSpawn(bot, startTime = performance.now()) {
+  return {
+    ...bot,
+    spawnStartedAt: startTime,
+    spawnDuration: bot.spawnDuration ?? 780,
+  };
 }
 
 function createGroundTexture() {
@@ -226,6 +239,56 @@ function createArenaPaintTexture() {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
+}
+
+function resolveObstacleCollisions(x, z, radius = 0.44) {
+  let nextX = x;
+  let nextZ = z;
+
+  for (let i = 0; i < MAP_OBSTACLES.length; i += 1) {
+    const obstacle = MAP_OBSTACLES[i];
+    const dx = nextX - obstacle.x;
+    const dz = nextZ - obstacle.z;
+
+    if (obstacle.type === 'circle') {
+      const avoidRadius = obstacle.radius + radius;
+      const distSq = dx * dx + dz * dz;
+      if (distSq < avoidRadius * avoidRadius) {
+        const dist = Math.sqrt(Math.max(distSq, 0.0001));
+        nextX = obstacle.x + (dx / dist) * avoidRadius;
+        nextZ = obstacle.z + (dz / dist) * avoidRadius;
+      }
+      continue;
+    }
+
+    const halfW = obstacle.width * 0.5 + radius;
+    const halfD = obstacle.depth * 0.5 + radius;
+    const insideX = Math.abs(dx) < halfW;
+    const insideZ = Math.abs(dz) < halfD;
+
+    if (!insideX || !insideZ) continue;
+
+    const penX = halfW - Math.abs(dx);
+    const penZ = halfD - Math.abs(dz);
+
+    if (penX < penZ) {
+      nextX += dx > 0 ? penX : -penX;
+    } else {
+      nextZ += dz > 0 ? penZ : -penZ;
+    }
+  }
+
+  return { x: nextX, z: nextZ };
+}
+
+function clamp01(value) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function easeOutBack(value) {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(value - 1, 3) + c1 * Math.pow(value - 1, 2);
 }
 
 function useInput(enabled) {
@@ -353,47 +416,6 @@ function PlayerController({ enabled, onPositionChange, shotSignalRef, weaponColo
   const targetMove = useRef(new THREE.Vector3());
   const up = useRef(new THREE.Vector3(0, 1, 0));
 
-  const resolveObstacleCollisions = (x, z) => {
-    const playerRadius = 0.44;
-    let nextX = x;
-    let nextZ = z;
-
-    for (let i = 0; i < MAP_OBSTACLES.length; i += 1) {
-      const obstacle = MAP_OBSTACLES[i];
-      const dx = nextX - obstacle.x;
-      const dz = nextZ - obstacle.z;
-
-      if (obstacle.type === 'circle') {
-        const avoidRadius = obstacle.radius + playerRadius;
-        const distSq = dx * dx + dz * dz;
-        if (distSq < avoidRadius * avoidRadius) {
-          const dist = Math.sqrt(Math.max(distSq, 0.0001));
-          nextX = obstacle.x + (dx / dist) * avoidRadius;
-          nextZ = obstacle.z + (dz / dist) * avoidRadius;
-        }
-        continue;
-      }
-
-      const halfW = obstacle.width * 0.5 + playerRadius;
-      const halfD = obstacle.depth * 0.5 + playerRadius;
-      const insideX = Math.abs(dx) < halfW;
-      const insideZ = Math.abs(dz) < halfD;
-
-      if (!insideX || !insideZ) continue;
-
-      const penX = halfW - Math.abs(dx);
-      const penZ = halfD - Math.abs(dz);
-
-      if (penX < penZ) {
-        nextX += dx > 0 ? penX : -penX;
-      } else {
-        nextZ += dz > 0 ? penZ : -penZ;
-      }
-    }
-
-    return { x: nextX, z: nextZ };
-  };
-
   useFrame((_, delta) => {
     if (!enabled) return;
     const safeDelta = Math.min(delta, 1 / 45);
@@ -432,7 +454,7 @@ function PlayerController({ enabled, onPositionChange, shotSignalRef, weaponColo
 
     const proposedX = position.current.x + stepX * stepScale;
     const proposedZ = position.current.z + stepZ * stepScale;
-    const resolved = resolveObstacleCollisions(proposedX, proposedZ);
+    const resolved = resolveObstacleCollisions(proposedX, proposedZ, 0.44);
 
     position.current.x = resolved.x;
     position.current.z = resolved.z;
@@ -461,7 +483,7 @@ function PlayerController({ enabled, onPositionChange, shotSignalRef, weaponColo
   return <WeaponView color={weaponColor} shotSignalRef={shotSignalRef} />;
 }
 
-function BulletLayer({ bullets, bots, onExpireMany, onBotHits }) {
+function BulletLayer({ bullets, bots, playerPosRef, onExpireMany, onBotHits, onDamagePlayer }) {
   const refs = useRef(new Map());
   const ages = useRef(new Map());
 
@@ -479,6 +501,10 @@ function BulletLayer({ bullets, bots, onExpireMany, onBotHits }) {
     if (bullets.length === 0) return;
     const expired = [];
     const hitBotCounts = new Map();
+    let pendingPlayerDamage = 0;
+    const playerX = playerPosRef.current.x;
+    const playerZ = playerPosRef.current.z;
+    const playerY = 1.35;
 
     for (let i = 0; i < bullets.length; i += 1) {
       const bullet = bullets[i];
@@ -492,16 +518,28 @@ function BulletLayer({ bullets, bots, onExpireMany, onBotHits }) {
       ref.position.y += bullet.vel[1] * delta;
       ref.position.z += bullet.vel[2] * delta;
 
-      for (let j = 0; j < bots.length; j += 1) {
-        const bot = bots[j];
-        const dx = ref.position.x - bot.x;
-        const dy = ref.position.y - 1.2;
-        const dz = ref.position.z - bot.z;
-        const hitRadius = bot.radius + bullet.size;
+      if (bullet.owner === 'bot') {
+        const dx = ref.position.x - playerX;
+        const dy = ref.position.y - playerY;
+        const dz = ref.position.z - playerZ;
+        const hitRadius = 0.54 + bullet.size;
         if (dx * dx + dy * dy + dz * dz <= hitRadius * hitRadius) {
-          hitBotCounts.set(bot.id, (hitBotCounts.get(bot.id) ?? 0) + 1);
+          pendingPlayerDamage += bullet.damage ?? 2;
           expired.push(bullet.id);
-          break;
+          continue;
+        }
+      } else {
+        for (let j = 0; j < bots.length; j += 1) {
+          const bot = bots[j];
+          const dx = ref.position.x - bot.x;
+          const dy = ref.position.y - 1.2;
+          const dz = ref.position.z - bot.z;
+          const hitRadius = bot.radius + bullet.size;
+          if (dx * dx + dy * dy + dz * dz <= hitRadius * hitRadius) {
+            hitBotCounts.set(bot.id, (hitBotCounts.get(bot.id) ?? 0) + 1);
+            expired.push(bullet.id);
+            break;
+          }
         }
       }
 
@@ -516,6 +554,10 @@ function BulletLayer({ bullets, bots, onExpireMany, onBotHits }) {
 
     if (hitBotCounts.size > 0) {
       onBotHits(Object.fromEntries(hitBotCounts));
+    }
+
+    if (pendingPlayerDamage > 0) {
+      onDamagePlayer(pendingPlayerDamage);
     }
   });
 
@@ -540,6 +582,7 @@ function BulletLayer({ bullets, bots, onExpireMany, onBotHits }) {
 
 function FruitBotUnit({ bot, style }) {
   const root = useRef(null);
+  const portal = useRef(null);
   const leftArm = useRef(null);
   const rightArm = useRef(null);
   const leftFoot = useRef(null);
@@ -548,6 +591,27 @@ function FruitBotUnit({ bot, style }) {
 
   useFrame((state, delta) => {
     if (!root.current) return;
+
+    const spawnStartedAt = bot.spawnStartedAt ?? 0;
+    const spawnDuration = bot.spawnDuration ?? 780;
+    const spawnProgress = spawnStartedAt > 0 ? clamp01((performance.now() - spawnStartedAt) / spawnDuration) : 1;
+    const spawnScale = 0.2 + 0.8 * easeOutBack(spawnProgress);
+
+    root.current.scale.setScalar(spawnScale);
+
+    if (portal.current) {
+      portal.current.visible = spawnProgress < 1;
+      portal.current.material.opacity = 0.12 + (1 - spawnProgress) * 0.62;
+      portal.current.rotation.z += delta * 1.8;
+      portal.current.position.y = 0.06 + Math.sin(state.clock.elapsedTime * 4) * 0.02;
+    }
+
+    if (spawnProgress < 1) {
+      if (hpBillboard.current) {
+        hpBillboard.current.quaternion.copy(state.camera.quaternion);
+      }
+      return;
+    }
 
     const targetX = bot.x;
     const targetZ = bot.z;
@@ -589,6 +653,16 @@ function FruitBotUnit({ bot, style }) {
 
   return (
     <group ref={root} position={[bot.x, 0, bot.z]}>
+      <mesh ref={portal} position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[bot.radius * 0.34, bot.radius * 1.42, 32]} />
+        <meshBasicMaterial color="#7af0ff" transparent opacity={0.35} depthWrite={false} />
+      </mesh>
+
+      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[bot.radius * 0.58, 24]} />
+        <meshBasicMaterial color="#59d9ff" transparent opacity={0.12} depthWrite={false} />
+      </mesh>
+
       <mesh position={[0, 0.7, 0]}>
         <sphereGeometry args={[bot.radius * 0.52, 14, 14]} />
         <meshStandardMaterial color={style.detail} roughness={0.56} metalness={0.09} />
@@ -671,8 +745,8 @@ function FruitBots({ bots }) {
   );
 }
 
-function BotDirector({ active, bots, setBots, playerPosRef, onDamagePlayer }) {
-  const lastAttackByBot = useRef(new Map());
+function BotDirector({ active, bots, setBots, playerPosRef, onSpawnBullet }) {
+  const lastShotByBot = useRef(new Map());
 
   useEffect(() => {
     if (!active) return undefined;
@@ -680,7 +754,6 @@ function BotDirector({ active, bots, setBots, playerPosRef, onDamagePlayer }) {
     const id = window.setInterval(() => {
       const px = playerPosRef.current.x;
       const pz = playerPosRef.current.z;
-      let pendingDamage = 0;
       const now = performance.now();
 
       setBots((prev) => prev.map((bot) => {
@@ -689,12 +762,29 @@ function BotDirector({ active, bots, setBots, playerPosRef, onDamagePlayer }) {
         const dist = Math.hypot(dx, dz);
         if (dist <= 0.0001) return bot;
 
-        const attackRange = bot.radius + 0.75;
+        const spawnStartedAt = bot.spawnStartedAt ?? 0;
+        const spawnDuration = bot.spawnDuration ?? 780;
+        const spawnProgress = spawnStartedAt > 0 ? clamp01((now - spawnStartedAt) / spawnDuration) : 1;
+        if (spawnProgress < 1) {
+          return bot;
+        }
+
+        const attackRange = bot.attackRange ?? 7.2;
         if (dist <= attackRange) {
-          const lastAttack = lastAttackByBot.current.get(bot.id) ?? 0;
-          if (now - lastAttack >= 900) {
-            pendingDamage += 2;
-            lastAttackByBot.current.set(bot.id, now);
+          const lastShot = lastShotByBot.current.get(bot.id) ?? 0;
+          const cooldownMs = bot.attackCooldownMs ?? 1200;
+          if (now - lastShot >= cooldownMs) {
+            const shotDirection = new THREE.Vector3(dx, 0.06, dz).normalize();
+            onSpawnBullet({
+              id: `${now}-${bot.id}-${Math.random().toString(16).slice(2)}`,
+              pos: [bot.x, 1.28, bot.z],
+              vel: [shotDirection.x * (bot.bulletSpeed ?? 12), shotDirection.y * (bot.bulletSpeed ?? 12), shotDirection.z * (bot.bulletSpeed ?? 12)],
+              size: 0.08,
+              color: '#ff5f5f',
+              owner: 'bot',
+              damage: bot.damage ?? 2,
+            });
+            lastShotByBot.current.set(bot.id, now);
           }
           return bot;
         }
@@ -702,28 +792,25 @@ function BotDirector({ active, bots, setBots, playerPosRef, onDamagePlayer }) {
         const step = Math.min(bot.speed * 0.12, Math.max(0, dist - attackRange));
         const nx = bot.x + (dx / dist) * step;
         const nz = bot.z + (dz / dist) * step;
+        const resolved = resolveObstacleCollisions(nx, nz, bot.radius);
 
-        const planar = Math.hypot(nx, nz);
+        const planar = Math.hypot(resolved.x, resolved.z);
         if (planar > WORLD_RADIUS - 0.7) {
           const inv = (WORLD_RADIUS - 0.7) / planar;
-          return { ...bot, x: nx * inv, z: nz * inv };
+          return { ...bot, x: resolved.x * inv, z: resolved.z * inv };
         }
 
-        return { ...bot, x: nx, z: nz };
+        return { ...bot, x: resolved.x, z: resolved.z };
       }));
-
-      if (pendingDamage > 0) {
-        onDamagePlayer(pendingDamage);
-      }
     }, 120);
 
     return () => window.clearInterval(id);
-  }, [active, playerPosRef, setBots, onDamagePlayer]);
+  }, [active, playerPosRef, setBots, onSpawnBullet]);
 
   useEffect(() => {
     const alive = new Set(bots.map((bot) => bot.id));
-    lastAttackByBot.current.forEach((_, id) => {
-      if (!alive.has(id)) lastAttackByBot.current.delete(id);
+    lastShotByBot.current.forEach((_, id) => {
+      if (!alive.has(id)) lastShotByBot.current.delete(id);
     });
   }, [bots]);
 
@@ -772,6 +859,8 @@ function ShootingSystem({ enabled, weapon, onSpawnBullet, onShot }) {
           vel: [spreadDir.x * weapon.speed, spreadDir.y * weapon.speed, spreadDir.z * weapon.speed],
           size: weapon.size,
           color: weapon.color,
+          owner: 'player',
+          damage: 34,
         });
       }
     };
@@ -781,6 +870,148 @@ function ShootingSystem({ enabled, weapon, onSpawnBullet, onShot }) {
   }, [camera, enabled, onShot, onSpawnBullet, weapon]);
 
   return null;
+}
+
+function useAudioEngine(play, paused) {
+  const audioContextRef = useRef(null);
+  const masterGainRef = useRef(null);
+  const musicGainRef = useRef(null);
+  const musicFilterRef = useRef(null);
+  const musicIntervalRef = useRef(null);
+  const musicStepRef = useRef(0);
+
+  const ensureContext = () => {
+    const existingContext = audioContextRef.current;
+    if (existingContext) {
+      if (existingContext.state === 'suspended') {
+        void existingContext.resume();
+      }
+      return existingContext;
+    }
+
+    const context = new (window.AudioContext || window.webkitAudioContext)();
+    const masterGain = context.createGain();
+    masterGain.gain.value = 0.24;
+    masterGain.connect(context.destination);
+
+    const musicFilter = context.createBiquadFilter();
+    musicFilter.type = 'lowpass';
+    musicFilter.frequency.value = 720;
+
+    const musicGain = context.createGain();
+    musicGain.gain.value = 0.12;
+    musicGain.connect(musicFilter);
+    musicFilter.connect(masterGain);
+
+    audioContextRef.current = context;
+    masterGainRef.current = masterGain;
+    musicGainRef.current = musicGain;
+    musicFilterRef.current = musicFilter;
+    return context;
+  };
+
+  const stopMusic = () => {
+    if (musicIntervalRef.current) {
+      window.clearInterval(musicIntervalRef.current);
+      musicIntervalRef.current = null;
+    }
+    musicStepRef.current = 0;
+    const context = audioContextRef.current;
+    if (context) {
+      try {
+        context.suspend();
+      } catch {
+        // No-op.
+      }
+    }
+  };
+
+  const startMusic = () => {
+    if (!play) return;
+    const context = ensureContext();
+    if (!context || musicIntervalRef.current) return;
+    if (context.state === 'suspended') {
+      void context.resume();
+    }
+
+    const chords = [
+      [196, 247, 294],
+      [174, 220, 262],
+      [185, 233, 277],
+      [164, 207, 247],
+    ];
+    const melody = [440, 494, 523, 494, 392, 440, 349, 392];
+    const tempoMs = 420;
+
+    musicIntervalRef.current = window.setInterval(() => {
+      const currentContext = audioContextRef.current;
+      const musicGain = musicGainRef.current;
+      if (!currentContext || !musicGain) return;
+
+      const time = currentContext.currentTime;
+      const chord = chords[musicStepRef.current % chords.length];
+      chord.forEach((frequency, index) => {
+        const oscillator = currentContext.createOscillator();
+        const gain = currentContext.createGain();
+        oscillator.type = index === 0 ? 'triangle' : 'sine';
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, time);
+        gain.gain.exponentialRampToValueAtTime(0.05, time + 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.38);
+        oscillator.connect(gain);
+        gain.connect(musicGain);
+        oscillator.start(time);
+        oscillator.stop(time + 0.45);
+      });
+
+      const melodyOsc = currentContext.createOscillator();
+      const melodyGain = currentContext.createGain();
+      melodyOsc.type = 'sine';
+      melodyOsc.frequency.value = melody[musicStepRef.current % melody.length];
+      melodyGain.gain.setValueAtTime(0.0001, time);
+      melodyGain.gain.exponentialRampToValueAtTime(0.024, time + 0.04);
+      melodyGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.25);
+      melodyOsc.connect(melodyGain);
+      melodyGain.connect(musicGain);
+      melodyOsc.start(time);
+      melodyOsc.stop(time + 0.3);
+
+      musicStepRef.current += 1;
+    }, tempoMs);
+  };
+
+  const playShot = (isEnemy = false) => {
+    const context = ensureContext();
+    if (!context || !masterGainRef.current) return;
+    const time = context.currentTime;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = isEnemy ? 'square' : 'triangle';
+    oscillator.frequency.setValueAtTime(isEnemy ? 180 : 320, time);
+    oscillator.frequency.exponentialRampToValueAtTime(isEnemy ? 110 : 180, time + 0.08);
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(isEnemy ? 0.08 : 0.12, time + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.12);
+    oscillator.connect(gain);
+    gain.connect(masterGainRef.current);
+    oscillator.start(time);
+    oscillator.stop(time + 0.16);
+  };
+
+  useEffect(() => {
+    if (play) {
+      startMusic();
+    } else {
+      stopMusic();
+    }
+
+    return () => {
+      stopMusic();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [play]);
+
+  return { playShot, ensureContext };
 }
 
 function MiniMapRadar({ playerPosRef, bots }) {
@@ -1196,6 +1427,7 @@ export default function App() {
   const obstacleTextureBlue = useMemo(() => createObstacleTexture('#2b3548', '#b7cff6'), []);
   const orbTexture = useMemo(() => createOrbTexture(), []);
   const arenaPaintTexture = useMemo(() => createArenaPaintTexture(), []);
+  const { playShot, ensureContext } = useAudioEngine(play, paused);
 
   useEffect(() => {
     ammoRef.current = ammo;
@@ -1334,7 +1566,8 @@ export default function App() {
       window.clearTimeout(waveSpawnTimeoutRef.current);
       waveSpawnTimeoutRef.current = null;
     }
-    setBots(SOLO_BOTS_TEMPLATE.map((bot) => ({ ...bot })));
+    void ensureContext();
+    setBots(SOLO_BOTS_TEMPLATE.map((bot) => stampBotSpawn({ ...bot })));
     setPlay(true);
     setPaused(false);
     window.focus();
@@ -1381,7 +1614,8 @@ export default function App() {
     const resetAmmo = WEAPON_BY_ID[weaponId].ammo;
     ammoRef.current = resetAmmo;
     setAmmo(resetAmmo);
-    setBots(SOLO_BOTS_TEMPLATE.map((bot) => ({ ...bot })));
+    void ensureContext();
+    setBots(SOLO_BOTS_TEMPLATE.map((bot) => stampBotSpawn({ ...bot })));
     window.focus();
     requestAnimationFrame(() => lockPointer());
   };
@@ -1393,10 +1627,14 @@ export default function App() {
     ammoRef.current = nextAmmo;
     setAmmo(nextAmmo);
     shotSignalRef.current += 1;
+    playShot(false);
     return true;
   };
 
   const onSpawnBullet = (bullet) => {
+    if (bullet.owner === 'bot') {
+      playShot(true);
+    }
     setBullets((prev) => {
       const next = [...prev, bullet];
       if (next.length > 80) return next.slice(next.length - 56);
@@ -1453,7 +1691,7 @@ export default function App() {
 
     waveRef.current += 1;
     waveSpawnTimeoutRef.current = window.setTimeout(() => {
-      setBots(createWaveBots(5, waveRef.current));
+      setBots(createWaveBots(5, waveRef.current).map((bot) => stampBotSpawn(bot)));
       waveSpawnTimeoutRef.current = null;
     }, 850);
 
@@ -1538,7 +1776,7 @@ export default function App() {
           />
 
           <FruitBots bots={bots} />
-          <BotDirector active={play && !paused && selectedMode === 'solo' && playerHealth > 0 && bots.length > 0} bots={bots} setBots={setBots} playerPosRef={playerPosRef} onDamagePlayer={onDamagePlayer} />
+          <BotDirector active={play && !paused && selectedMode === 'solo' && playerHealth > 0 && bots.length > 0} bots={bots} setBots={setBots} playerPosRef={playerPosRef} onSpawnBullet={onSpawnBullet} />
 
           {play && (
             <>
@@ -1547,7 +1785,7 @@ export default function App() {
             </>
           )}
 
-          <BulletLayer bullets={bullets} bots={bots} onExpireMany={removeBullets} onBotHits={onBotHits} />
+          <BulletLayer bullets={bullets} bots={bots} playerPosRef={playerPosRef} onExpireMany={removeBullets} onBotHits={onBotHits} onDamagePlayer={onDamagePlayer} />
         </Canvas>
       </KeyboardControls>
     </div>
