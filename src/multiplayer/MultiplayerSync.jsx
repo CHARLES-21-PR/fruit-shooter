@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
 import { onDisconnect, onValue, ref, remove, runTransaction, set, update } from 'firebase/database';
 import { getFirebaseDatabase, hasFirebaseConfig } from './firebaseClient';
 
@@ -58,15 +59,17 @@ async function claimSlot(database, roomId, playerId) {
   return null;
 }
 
-export default function MultiplayerSync({ enabled, playerName, playerPosRef, onSocketId, onPlayers, onStatus }) {
+export default function MultiplayerSync({ enabled, playerName, playerPosRef, onSocketId, onPlayers, onStatus, onSelfHealth }) {
   const { camera } = useThree();
   const databaseRef = useRef(null);
   const playerIdRef = useRef(null);
   const playerRefRef = useRef(null);
   const slotRefRef = useRef(null);
+  const playersByIdRef = useRef({});
   const playersUnsubscribeRef = useRef(null);
   const lastSentRef = useRef('');
   const joinedRef = useRef(false);
+  const attackCooldownRef = useRef(0);
 
   useEffect(() => {
     if (!hasFirebaseConfig()) {
@@ -119,6 +122,11 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
         const players = Object.entries(rawPlayers)
           .map(([id, player]) => ({ id, ...(player ?? {}) }))
           .filter((player) => Boolean(player?.id));
+        playersByIdRef.current = rawPlayers;
+        const selfPlayer = rawPlayers[playerId];
+        if (selfPlayer && Number.isFinite(selfPlayer.hp)) {
+          onSelfHealth?.(Math.max(0, Math.round(selfPlayer.hp)));
+        }
         onPlayers?.(players);
       });
       playersUnsubscribeRef.current = unsubscribePlayers;
@@ -144,6 +152,7 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
         playersUnsubscribeRef.current();
         playersUnsubscribeRef.current = null;
       }
+      playersByIdRef.current = {};
       if (playerRefRef.current) {
         void remove(playerRefRef.current);
         playerRefRef.current = null;
@@ -156,7 +165,67 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
       onPlayers?.([]);
       onStatus?.('idle');
     };
-  }, [playerName, camera, onPlayers, onSocketId, onStatus, playerPosRef]);
+  }, [playerName, camera, onPlayers, onSocketId, onStatus, onSelfHealth, playerPosRef]);
+
+  useEffect(() => {
+    const onMouseDown = (event) => {
+      if (event.button !== 0) return;
+      if (!enabled || !joinedRef.current) return;
+
+      const now = performance.now();
+      if (now < attackCooldownRef.current) return;
+      attackCooldownRef.current = now + 220;
+
+      const database = databaseRef.current;
+      const playerId = playerIdRef.current;
+      if (!database || !playerId) return;
+
+      const origin = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
+      const direction = new THREE.Vector3();
+      camera.getWorldDirection(direction).normalize();
+
+      const playersById = playersByIdRef.current;
+      let selectedTargetId = null;
+      let selectedDistance = Number.POSITIVE_INFINITY;
+
+      Object.entries(playersById).forEach(([targetId, target]) => {
+        if (!target || targetId === playerId) return;
+        const targetHp = Number(target.hp ?? 100);
+        if (!Number.isFinite(targetHp) || targetHp <= 0) return;
+
+        const targetCenter = new THREE.Vector3(
+          Number(target.x ?? 0),
+          Number(target.y ?? 1.7) - 0.85,
+          Number(target.z ?? 0),
+        );
+        const toTarget = targetCenter.sub(origin);
+        const projection = toTarget.dot(direction);
+        if (projection <= 0 || projection > 35) return;
+
+        const closestPoint = direction.clone().multiplyScalar(projection);
+        const missDistance = toTarget.sub(closestPoint).length();
+        if (missDistance > 0.68) return;
+
+        if (projection < selectedDistance) {
+          selectedDistance = projection;
+          selectedTargetId = targetId;
+        }
+      });
+
+      if (!selectedTargetId) return;
+
+      const targetHpRef = ref(database, `rooms/${ROOM_ID}/players/${selectedTargetId}/hp`);
+      void runTransaction(targetHpRef, (current) => {
+        const hp = Number(current ?? 100);
+        if (!Number.isFinite(hp)) return 100;
+        if (hp <= 0) return 0;
+        return Math.max(0, hp - 20);
+      });
+    };
+
+    window.addEventListener('mousedown', onMouseDown);
+    return () => window.removeEventListener('mousedown', onMouseDown);
+  }, [camera, enabled]);
 
   useEffect(() => {
     if (!enabled) {

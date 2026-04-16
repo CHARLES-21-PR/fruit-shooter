@@ -1846,6 +1846,7 @@ export default function App() {
               onSocketId={setSocketId}
               onPlayers={setRemotePlayers}
               onStatus={setConnectionStatus}
+              onSelfHealth={setPlayerHealth}
             />
           )}
           {remotePlayers

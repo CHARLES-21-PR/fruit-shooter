@@ -4,12 +4,12 @@ import * as THREE from 'three';
 
 export default function OtherPlayer({ player }) {
   const root = useRef(null);
-  const targetPosition = useRef(new THREE.Vector3(player.x, player.y ?? 1.7, player.z));
+  const targetPosition = useRef(new THREE.Vector3(player.x, (player.y ?? 1.7) - 1.7, player.z));
   const targetRotation = useRef(player.rotationY ?? 0);
   const currentRotation = useRef(player.rotationY ?? 0);
 
   useEffect(() => {
-    targetPosition.current.set(player.x, player.y ?? 1.7, player.z);
+    targetPosition.current.set(player.x, (player.y ?? 1.7) - 1.7, player.z);
     targetRotation.current = player.rotationY ?? 0;
   }, [player.x, player.y, player.z, player.rotationY]);
 
@@ -25,7 +25,7 @@ export default function OtherPlayer({ player }) {
   const bodyColor = player.color ?? '#78c7ff';
 
   return (
-    <group ref={root} position={[player.x, player.y ?? 1.7, player.z]}>
+    <group ref={root} position={[player.x, (player.y ?? 1.7) - 1.7, player.z]}>
       <mesh position={[0, 0.72, 0]}>
         <boxGeometry args={[0.56, 1.05, 0.56]} />
         <meshStandardMaterial color={bodyColor} roughness={0.55} metalness={0.08} />
