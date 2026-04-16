@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { onChildAdded, onDisconnect, onValue, push, ref, remove, runTransaction, set, update } from 'firebase/database';
+import { get, onChildAdded, onDisconnect, onValue, push, ref, remove, runTransaction, set, update } from 'firebase/database';
 import { getFirebaseDatabase, hasFirebaseConfig } from './firebaseClient';
 
 const ROOM_ID = import.meta.env.VITE_FIREBASE_ROOM_ID ?? 'arena-main';
@@ -80,6 +80,25 @@ async function claimSlot(database, roomId, playerId) {
   return null;
 }
 
+async function cleanupOrphanSlots(database, roomId) {
+  const slotsRef = ref(database, `rooms/${roomId}/slots`);
+  const playersRef = ref(database, `rooms/${roomId}/players`);
+  const [slotsSnapshot, playersSnapshot] = await Promise.all([get(slotsRef), get(playersRef)]);
+
+  const slots = slotsSnapshot.val() ?? {};
+  const players = playersSnapshot.val() ?? {};
+
+  const cleanupTasks = Object.entries(slots).map(([slotIndex, slotValue]) => {
+    const ownerId = slotValue?.playerId;
+    if (!ownerId || !players[ownerId]) {
+      return remove(ref(database, `rooms/${roomId}/slots/${slotIndex}`));
+    }
+    return Promise.resolve();
+  });
+
+  await Promise.all(cleanupTasks);
+}
+
 export default function MultiplayerSync({ enabled, playerName, playerPosRef, onSocketId, onPlayers, onStatus, onSelfHealth, onRemoteShot, onRespawnReady }) {
   const { camera } = useThree();
   const databaseRef = useRef(null);
@@ -120,6 +139,8 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
 
     const joinRoom = async () => {
       onStatus?.('connecting');
+
+      await cleanupOrphanSlots(database, ROOM_ID);
 
       const slotClaim = await claimSlot(database, ROOM_ID, playerId);
       if (cancelled) return;
@@ -239,7 +260,7 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
       onPlayers?.([]);
       onStatus?.('idle');
     };
-  }, [playerName, camera, onPlayers, onSocketId, onStatus, onSelfHealth, playerPosRef]);
+  }, [playerName, camera, onPlayers, onSocketId, onStatus, onSelfHealth, onRemoteShot, onRespawnReady, playerPosRef]);
 
   useEffect(() => {
     const onMouseDown = (event) => {

@@ -15,6 +15,13 @@
             ".read": true,
             ".write": true
           }
+        },
+        "shots": {
+          ".read": true,
+          "$shotId": {
+            ".read": true,
+            ".write": true
+          }
         }
       }
     }

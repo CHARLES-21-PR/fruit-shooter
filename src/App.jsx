@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Grid, KeyboardControls, PointerLockControls, Sky } from '@react-three/drei';
 import * as THREE from 'three';
@@ -1550,7 +1550,7 @@ export default function App() {
     }, 40);
   };
 
-  const triggerDamageFlash = () => {
+  const triggerDamageFlash = useCallback(() => {
     setHitFlashVisible(true);
     if (hitFlashTimeoutRef.current) {
       window.clearTimeout(hitFlashTimeoutRef.current);
@@ -1559,7 +1559,7 @@ export default function App() {
       setHitFlashVisible(false);
       hitFlashTimeoutRef.current = null;
     }, 160);
-  };
+  }, []);
 
   const keyboardMap = useMemo(
     () => [
@@ -1741,7 +1741,7 @@ export default function App() {
     });
   };
 
-  const onRemoteShot = (payload) => {
+  const onRemoteShot = useCallback((payload) => {
     if (!payload) return;
 
     const dir = new THREE.Vector3(
@@ -1767,7 +1767,7 @@ export default function App() {
       if (next.length > 80) return next.slice(next.length - 56);
       return next;
     });
-  };
+  }, []);
 
   const removeBullets = (ids) => {
     if (ids.length === 0) return;
@@ -1810,7 +1810,7 @@ export default function App() {
     });
   };
 
-  const onSelfHealth = (nextHealthRaw) => {
+  const onSelfHealth = useCallback((nextHealthRaw) => {
     const nextHealth = Math.max(0, Math.min(100, Number(nextHealthRaw ?? 100)));
     if (!Number.isFinite(nextHealth)) return;
 
@@ -1820,13 +1820,13 @@ export default function App() {
       }
       return nextHealth;
     });
-  };
+  }, [triggerDamageFlash]);
 
-  const onRespawnReady = () => {
+  const onRespawnReady = useCallback(() => {
     setAwaitRespawnClick(true);
     setPaused(true);
     unlockPointer();
-  };
+  }, []);
 
   useEffect(() => {
     if (!play) return;
