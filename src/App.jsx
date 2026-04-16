@@ -1176,6 +1176,7 @@ function Overlay({
   remotePlayers,
   socketId,
   connectionStatus,
+  awaitRespawnClick,
   onStart,
   onContinue,
   onBackToStart,
@@ -1343,7 +1344,7 @@ function Overlay({
               <div style={{ fontSize: 12, opacity: 0.75 }}>Conectando sala...</div>
             )}
             {remotePlayers.length === 0 && connectionStatus === 'error' && (
-              <div style={{ fontSize: 12, opacity: 0.75 }}>Revisa que el servidor Socket.io esté activo.</div>
+              <div style={{ fontSize: 12, opacity: 0.75 }}>Revisa la configuracion de Firebase y la sala.</div>
             )}
             {remotePlayers.length === 0 && connectionStatus === 'full' && (
               <div style={{ fontSize: 12, opacity: 0.75 }}>La sala ya tiene 4 jugadores.</div>
@@ -1367,6 +1368,12 @@ function Overlay({
       {selectedMode === 'multiplayer' && playerHealth <= 0 && (
         <div style={{ position: 'absolute', top: 54, left: 12, zIndex: 10, color: '#ffe9cf', background: 'rgba(90, 56, 21, 0.82)', border: '1px solid #d9a05f', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
           Te eliminaron. Reapareciendo en 3 segundos...
+        </div>
+      )}
+
+      {selectedMode === 'multiplayer' && awaitRespawnClick && playerHealth > 0 && (
+        <div style={{ position: 'absolute', top: 54, left: 12, zIndex: 12, color: '#e8f6ff', background: 'rgba(16, 52, 74, 0.84)', border: '1px solid #72bddf', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
+          Reapareciste. Haz click para volver al combate.
         </div>
       )}
 
@@ -1424,7 +1431,7 @@ function Overlay({
 
       {!paused && <MiniMapRadar playerPosRef={playerPosRef} bots={bots} />}
 
-      {paused && playerHealth > 0 && (
+      {paused && playerHealth > 0 && !awaitRespawnClick && (
         <div className="pause-menu" style={{ zIndex: 25 }}>
           <div className="pause-card" style={{ width: 'min(90vw, 460px)' }}>
             <h2>Juego en Pausa</h2>
@@ -1461,6 +1468,7 @@ export default function App() {
   const controlsRef = useRef(null);
   const waveRef = useRef(1);
   const waveSpawnTimeoutRef = useRef(null);
+  const hitFlashTimeoutRef = useRef(null);
   const [play, setPlay] = useState(false);
   const [paused, setPaused] = useState(false);
   const [pointerLocked, setPointerLocked] = useState(false);
@@ -1477,6 +1485,8 @@ export default function App() {
   const [remotePlayers, setRemotePlayers] = useState([]);
   const [socketId, setSocketId] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('idle');
+  const [hitFlashVisible, setHitFlashVisible] = useState(false);
+  const [awaitRespawnClick, setAwaitRespawnClick] = useState(false);
   const ammoRef = useRef(WEAPONS[0].ammo);
 
   const playerPosRef = useRef({ x: 0, z: 0 });
@@ -1497,6 +1507,10 @@ export default function App() {
 
   useEffect(() => {
     return () => {
+      if (hitFlashTimeoutRef.current) {
+        window.clearTimeout(hitFlashTimeoutRef.current);
+        hitFlashTimeoutRef.current = null;
+      }
       groundTexture.dispose();
       obstacleTextureRed.dispose();
       obstacleTextureGreen.dispose();
@@ -1534,6 +1548,17 @@ export default function App() {
         document.exitPointerLock();
       }
     }, 40);
+  };
+
+  const triggerDamageFlash = () => {
+    setHitFlashVisible(true);
+    if (hitFlashTimeoutRef.current) {
+      window.clearTimeout(hitFlashTimeoutRef.current);
+    }
+    hitFlashTimeoutRef.current = window.setTimeout(() => {
+      setHitFlashVisible(false);
+      hitFlashTimeoutRef.current = null;
+    }, 160);
   };
 
   const keyboardMap = useMemo(
@@ -1598,13 +1623,14 @@ export default function App() {
   }, [play, paused, weaponId]);
 
   useEffect(() => {
-    document.body.style.cursor = play && !paused ? 'none' : 'default';
-    document.documentElement.style.cursor = play && !paused ? 'none' : 'default';
+    const hideCursor = play && !paused && playerHealth > 0;
+    document.body.style.cursor = hideCursor ? 'none' : 'default';
+    document.documentElement.style.cursor = hideCursor ? 'none' : 'default';
     return () => {
       document.body.style.cursor = 'default';
       document.documentElement.style.cursor = 'default';
     };
-  }, [play, paused]);
+  }, [play, paused, playerHealth]);
 
   const onStart = () => {
     const cleanName = draftName.trim();
@@ -1627,6 +1653,8 @@ export default function App() {
     setRemotePlayers([]);
     setSocketId(null);
     setConnectionStatus('idle');
+    setHitFlashVisible(false);
+    setAwaitRespawnClick(false);
     setBots(selectedMode === 'solo' ? SOLO_BOTS_TEMPLATE.map((bot) => stampBotSpawn({ ...bot })) : []);
     setPlay(true);
     setPaused(false);
@@ -1635,6 +1663,7 @@ export default function App() {
   };
 
   const onContinue = () => {
+    setAwaitRespawnClick(false);
     setPaused(false);
     window.focus();
     requestAnimationFrame(() => lockPointer());
@@ -1650,6 +1679,8 @@ export default function App() {
     setSocketId(null);
     setConnectionStatus('idle');
     setPlayerHealth(100);
+    setHitFlashVisible(false);
+    setAwaitRespawnClick(false);
     if (waveSpawnTimeoutRef.current) {
       window.clearTimeout(waveSpawnTimeoutRef.current);
       waveSpawnTimeoutRef.current = null;
@@ -1670,6 +1701,8 @@ export default function App() {
     setPlay(true);
     setBullets([]);
     setPlayerHealth(100);
+    setHitFlashVisible(false);
+    setAwaitRespawnClick(false);
     waveRef.current = 1;
     if (waveSpawnTimeoutRef.current) {
       window.clearTimeout(waveSpawnTimeoutRef.current);
@@ -1701,6 +1734,34 @@ export default function App() {
     if (bullet.owner === 'bot') {
       playShot(true);
     }
+    setBullets((prev) => {
+      const next = [...prev, bullet];
+      if (next.length > 80) return next.slice(next.length - 56);
+      return next;
+    });
+  };
+
+  const onRemoteShot = (payload) => {
+    if (!payload) return;
+
+    const dir = new THREE.Vector3(
+      Number(payload.dx ?? 0),
+      Number(payload.dy ?? 0),
+      Number(payload.dz ?? 0),
+    );
+    if (dir.lengthSq() < 0.0001) return;
+    dir.normalize();
+
+    const bullet = {
+      id: `remote-shot-${payload.ownerId ?? 'player'}-${payload.createdAt ?? Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      owner: 'remote-player',
+      pos: [Number(payload.x ?? 0), Number(payload.y ?? 1.5), Number(payload.z ?? 0)],
+      vel: [dir.x * 58, dir.y * 58, dir.z * 58],
+      size: 0.1,
+      color: '#ffb56b',
+      damage: 0,
+    };
+
     setBullets((prev) => {
       const next = [...prev, bullet];
       if (next.length > 80) return next.slice(next.length - 56);
@@ -1740,16 +1801,59 @@ export default function App() {
 
   const onDamagePlayer = (amount) => {
     if (!play || paused) return;
-    setPlayerHealth((current) => Math.max(0, current - amount));
+    setPlayerHealth((current) => {
+      const next = Math.max(0, current - amount);
+      if (next < current) {
+        triggerDamageFlash();
+      }
+      return next;
+    });
+  };
+
+  const onSelfHealth = (nextHealthRaw) => {
+    const nextHealth = Math.max(0, Math.min(100, Number(nextHealthRaw ?? 100)));
+    if (!Number.isFinite(nextHealth)) return;
+
+    setPlayerHealth((current) => {
+      if (nextHealth < current) {
+        triggerDamageFlash();
+      }
+      return nextHealth;
+    });
+  };
+
+  const onRespawnReady = () => {
+    setAwaitRespawnClick(true);
+    setPaused(true);
+    unlockPointer();
   };
 
   useEffect(() => {
     if (!play) return;
     if (playerHealth > 0) return;
     unlockPointer();
-    if (selectedMode === 'multiplayer') return;
     setPaused(true);
+    if (selectedMode === 'multiplayer') {
+      setAwaitRespawnClick(true);
+    }
   }, [play, playerHealth, selectedMode]);
+
+  useEffect(() => {
+    if (!play || selectedMode !== 'multiplayer' || !awaitRespawnClick || playerHealth <= 0) return () => {};
+
+    const onMouseDown = (event) => {
+      if (event.button !== 0) return;
+      setAwaitRespawnClick(false);
+      setPaused(false);
+      window.focus();
+      requestAnimationFrame(() => lockPointer());
+    };
+
+    window.addEventListener('mousedown', onMouseDown);
+    return () => {
+      window.removeEventListener('mousedown', onMouseDown);
+    };
+  }, [play, selectedMode, awaitRespawnClick, playerHealth]);
 
   useEffect(() => {
     if (!play || paused || selectedMode !== 'solo' || playerHealth <= 0) return;
@@ -1787,6 +1891,7 @@ export default function App() {
         remotePlayers={remotePlayers}
         socketId={socketId}
         connectionStatus={connectionStatus}
+        awaitRespawnClick={awaitRespawnClick}
         onStart={onStart}
         onContinue={onContinue}
         onBackToStart={onBackToStart}
@@ -1798,6 +1903,18 @@ export default function App() {
         playerPosRef={playerPosRef}
         bots={bots}
       />
+
+      {hitFlashVisible && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            pointerEvents: 'none',
+            zIndex: 22,
+            background: 'radial-gradient(circle at center, rgba(255, 90, 90, 0.08), rgba(180, 20, 20, 0.28))',
+          }}
+        />
+      )}
 
       <KeyboardControls map={keyboardMap}>
         <Canvas
@@ -1854,7 +1971,9 @@ export default function App() {
               onSocketId={setSocketId}
               onPlayers={setRemotePlayers}
               onStatus={setConnectionStatus}
-              onSelfHealth={setPlayerHealth}
+              onSelfHealth={onSelfHealth}
+              onRemoteShot={onRemoteShot}
+              onRespawnReady={onRespawnReady}
             />
           )}
           {remotePlayers

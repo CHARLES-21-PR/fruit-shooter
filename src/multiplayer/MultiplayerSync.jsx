@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { onDisconnect, onValue, ref, remove, runTransaction, set, update } from 'firebase/database';
+import { onChildAdded, onDisconnect, onValue, push, ref, remove, runTransaction, set, update } from 'firebase/database';
 import { getFirebaseDatabase, hasFirebaseConfig } from './firebaseClient';
 
 const ROOM_ID = import.meta.env.VITE_FIREBASE_ROOM_ID ?? 'arena-main';
@@ -80,7 +80,7 @@ async function claimSlot(database, roomId, playerId) {
   return null;
 }
 
-export default function MultiplayerSync({ enabled, playerName, playerPosRef, onSocketId, onPlayers, onStatus, onSelfHealth }) {
+export default function MultiplayerSync({ enabled, playerName, playerPosRef, onSocketId, onPlayers, onStatus, onSelfHealth, onRemoteShot, onRespawnReady }) {
   const { camera } = useThree();
   const databaseRef = useRef(null);
   const playerIdRef = useRef(null);
@@ -88,10 +88,12 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
   const slotRefRef = useRef(null);
   const playersByIdRef = useRef({});
   const playersUnsubscribeRef = useRef(null);
+  const shotsUnsubscribeRef = useRef(null);
   const respawnTimeoutRef = useRef(null);
   const lastSentRef = useRef('');
   const joinedRef = useRef(false);
   const attackCooldownRef = useRef(0);
+  const localHpRef = useRef(100);
 
   useEffect(() => {
     if (!hasFirebaseConfig()) {
@@ -111,6 +113,7 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
 
     databaseRef.current = database;
     const roomPlayersRef = ref(database, `rooms/${ROOM_ID}/players`);
+    const roomShotsRef = ref(database, `rooms/${ROOM_ID}/shots`);
     const playerId = playerIdRef.current ?? getOrCreateTabPlayerId();
     playerIdRef.current = playerId;
     let cancelled = false;
@@ -148,6 +151,8 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
         const selfPlayer = rawPlayers[playerId];
         if (selfPlayer && Number.isFinite(selfPlayer.hp)) {
           const selfHp = Math.max(0, Math.round(selfPlayer.hp));
+          const previousHp = localHpRef.current;
+          localHpRef.current = selfHp;
           onSelfHealth?.(selfHp);
 
           if (selfHp <= 0 && !respawnTimeoutRef.current) {
@@ -176,10 +181,21 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
             window.clearTimeout(respawnTimeoutRef.current);
             respawnTimeoutRef.current = null;
           }
+
+          if (previousHp <= 0 && selfHp > 0) {
+            onRespawnReady?.();
+          }
         }
         onPlayers?.(players);
       });
       playersUnsubscribeRef.current = unsubscribePlayers;
+
+      const unsubscribeShots = onChildAdded(roomShotsRef, (snapshot) => {
+        const payload = snapshot.val();
+        if (!payload || payload.ownerId === playerId) return;
+        onRemoteShot?.(payload);
+      });
+      shotsUnsubscribeRef.current = unsubscribeShots;
 
       joinedRef.current = true;
       onSocketId?.(playerId);
@@ -201,6 +217,10 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
       if (playersUnsubscribeRef.current) {
         playersUnsubscribeRef.current();
         playersUnsubscribeRef.current = null;
+      }
+      if (shotsUnsubscribeRef.current) {
+        shotsUnsubscribeRef.current();
+        shotsUnsubscribeRef.current = null;
       }
       if (respawnTimeoutRef.current) {
         window.clearTimeout(respawnTimeoutRef.current);
@@ -237,6 +257,23 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
       const origin = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
       const direction = new THREE.Vector3();
       camera.getWorldDirection(direction).normalize();
+
+      const shotsRef = ref(database, `rooms/${ROOM_ID}/shots`);
+      const shotRef = push(shotsRef);
+      const shotPayload = {
+        ownerId: playerId,
+        x: origin.x,
+        y: origin.y,
+        z: origin.z,
+        dx: direction.x,
+        dy: direction.y,
+        dz: direction.z,
+        createdAt: Date.now(),
+      };
+      void set(shotRef, shotPayload);
+      window.setTimeout(() => {
+        void remove(shotRef);
+      }, 2200);
 
       const playersById = playersByIdRef.current;
       let selectedTargetId = null;
