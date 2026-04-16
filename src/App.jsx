@@ -1358,13 +1358,19 @@ function Overlay({
         </div>
       )}
 
-      {playerHealth <= 0 && (
+      {selectedMode === 'solo' && playerHealth <= 0 && (
         <div style={{ position: 'absolute', top: 54, left: 12, zIndex: 10, color: '#ffe2e2', background: 'rgba(88, 24, 24, 0.8)', border: '1px solid #d07b7b', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
           Te han derrotado. Puedes jugar de nuevo ahora.
         </div>
       )}
 
-      {playerHealth <= 0 && (
+      {selectedMode === 'multiplayer' && playerHealth <= 0 && (
+        <div style={{ position: 'absolute', top: 54, left: 12, zIndex: 10, color: '#ffe9cf', background: 'rgba(90, 56, 21, 0.82)', border: '1px solid #d9a05f', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
+          Te eliminaron. Reapareciendo en 3 segundos...
+        </div>
+      )}
+
+      {selectedMode === 'solo' && playerHealth <= 0 && (
         <div
           style={{
             position: 'absolute',
@@ -1681,6 +1687,7 @@ export default function App() {
 
   const onShot = () => {
     if (!play || paused) return false;
+    if (playerHealth <= 0) return false;
     if (ammoRef.current <= 0) return false;
     const nextAmmo = ammoRef.current - 1;
     ammoRef.current = nextAmmo;
@@ -1740,8 +1747,9 @@ export default function App() {
     if (!play) return;
     if (playerHealth > 0) return;
     unlockPointer();
+    if (selectedMode === 'multiplayer') return;
     setPaused(true);
-  }, [play, playerHealth]);
+  }, [play, playerHealth, selectedMode]);
 
   useEffect(() => {
     if (!play || paused || selectedMode !== 'solo' || playerHealth <= 0) return;
@@ -1858,8 +1866,8 @@ export default function App() {
 
           {play && (
             <>
-              <PlayerController enabled={!paused} onPositionChange={onPositionChange} shotSignalRef={shotSignalRef} weaponColor={weapon.color} />
-              <ShootingSystem enabled={!paused} weapon={weapon} onSpawnBullet={onSpawnBullet} onShot={onShot} />
+              <PlayerController enabled={!paused && playerHealth > 0} onPositionChange={onPositionChange} shotSignalRef={shotSignalRef} weaponColor={weapon.color} />
+              <ShootingSystem enabled={!paused && playerHealth > 0} weapon={weapon} onSpawnBullet={onSpawnBullet} onShot={onShot} />
             </>
           )}
 

@@ -6,6 +6,13 @@ import { getFirebaseDatabase, hasFirebaseConfig } from './firebaseClient';
 
 const ROOM_ID = import.meta.env.VITE_FIREBASE_ROOM_ID ?? 'arena-main';
 const MAX_PLAYERS = 4;
+const RESPAWN_DELAY_MS = 3000;
+const SPAWN_POINTS = [
+  { x: -5.5, z: -5.5 },
+  { x: 5.5, z: -5.5 },
+  { x: 5.5, z: 5.5 },
+  { x: -5.5, z: 5.5 },
+];
 const PLAYER_ID_STORAGE_KEY = `fruit-shooter-player-id-${ROOM_ID}`;
 
 function createPlayerId() {
@@ -22,6 +29,16 @@ function getOrCreateTabPlayerId() {
   const created = createPlayerId();
   window.sessionStorage.setItem(PLAYER_ID_STORAGE_KEY, created);
   return created;
+}
+
+function pickSpawnPoint(playerId) {
+  let hash = 0;
+  for (let i = 0; i < playerId.length; i += 1) {
+    hash = (hash << 5) - hash + playerId.charCodeAt(i);
+    hash |= 0;
+  }
+  const index = Math.abs(hash) % SPAWN_POINTS.length;
+  return SPAWN_POINTS[index];
 }
 
 function buildPlayerPayload(playerId, playerName, playerPosRef, camera) {
@@ -67,6 +84,7 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
   const slotRefRef = useRef(null);
   const playersByIdRef = useRef({});
   const playersUnsubscribeRef = useRef(null);
+  const respawnTimeoutRef = useRef(null);
   const lastSentRef = useRef('');
   const joinedRef = useRef(false);
   const attackCooldownRef = useRef(0);
@@ -125,7 +143,35 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
         playersByIdRef.current = rawPlayers;
         const selfPlayer = rawPlayers[playerId];
         if (selfPlayer && Number.isFinite(selfPlayer.hp)) {
-          onSelfHealth?.(Math.max(0, Math.round(selfPlayer.hp)));
+          const selfHp = Math.max(0, Math.round(selfPlayer.hp));
+          onSelfHealth?.(selfHp);
+
+          if (selfHp <= 0 && !respawnTimeoutRef.current) {
+            respawnTimeoutRef.current = window.setTimeout(() => {
+              const currentPlayerRef = playerRefRef.current;
+              const currentPlayerId = playerIdRef.current;
+              if (!currentPlayerRef || !currentPlayerId) {
+                respawnTimeoutRef.current = null;
+                return;
+              }
+
+              const spawn = pickSpawnPoint(currentPlayerId);
+              void update(currentPlayerRef, {
+                hp: 100,
+                x: spawn.x,
+                y: 1.7,
+                z: spawn.z,
+                rotationY: 0,
+                updatedAt: Date.now(),
+              });
+              respawnTimeoutRef.current = null;
+            }, RESPAWN_DELAY_MS);
+          }
+
+          if (selfHp > 0 && respawnTimeoutRef.current) {
+            window.clearTimeout(respawnTimeoutRef.current);
+            respawnTimeoutRef.current = null;
+          }
         }
         onPlayers?.(players);
       });
@@ -151,6 +197,10 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
       if (playersUnsubscribeRef.current) {
         playersUnsubscribeRef.current();
         playersUnsubscribeRef.current = null;
+      }
+      if (respawnTimeoutRef.current) {
+        window.clearTimeout(respawnTimeoutRef.current);
+        respawnTimeoutRef.current = null;
       }
       playersByIdRef.current = {};
       if (playerRefRef.current) {
