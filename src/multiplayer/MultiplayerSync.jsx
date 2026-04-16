@@ -24,11 +24,15 @@ function createPlayerId() {
 
 function getOrCreateTabPlayerId() {
   if (typeof window === 'undefined') return createPlayerId();
-  const existing = window.sessionStorage.getItem(PLAYER_ID_STORAGE_KEY);
-  if (existing) return existing;
-  const created = createPlayerId();
-  window.sessionStorage.setItem(PLAYER_ID_STORAGE_KEY, created);
-  return created;
+  try {
+    const existing = window.sessionStorage.getItem(PLAYER_ID_STORAGE_KEY);
+    if (existing) return existing;
+    const created = createPlayerId();
+    window.sessionStorage.setItem(PLAYER_ID_STORAGE_KEY, created);
+    return created;
+  } catch {
+    return createPlayerId();
+  }
 }
 
 function pickSpawnPoint(playerId) {
