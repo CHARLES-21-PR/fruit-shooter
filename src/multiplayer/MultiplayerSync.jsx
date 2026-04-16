@@ -5,6 +5,23 @@ import { getFirebaseDatabase, hasFirebaseConfig } from './firebaseClient';
 
 const ROOM_ID = import.meta.env.VITE_FIREBASE_ROOM_ID ?? 'arena-main';
 const MAX_PLAYERS = 4;
+const PLAYER_ID_STORAGE_KEY = `fruit-shooter-player-id-${ROOM_ID}`;
+
+function createPlayerId() {
+  if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
+    return `player-${window.crypto.randomUUID()}`;
+  }
+  return `player-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+}
+
+function getOrCreateTabPlayerId() {
+  if (typeof window === 'undefined') return createPlayerId();
+  const existing = window.sessionStorage.getItem(PLAYER_ID_STORAGE_KEY);
+  if (existing) return existing;
+  const created = createPlayerId();
+  window.sessionStorage.setItem(PLAYER_ID_STORAGE_KEY, created);
+  return created;
+}
 
 function buildPlayerPayload(playerId, playerName, playerPosRef, camera) {
   return {
@@ -69,7 +86,7 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
 
     databaseRef.current = database;
     const roomPlayersRef = ref(database, `rooms/${ROOM_ID}/players`);
-    const playerId = playerIdRef.current ?? `player-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+    const playerId = playerIdRef.current ?? getOrCreateTabPlayerId();
     playerIdRef.current = playerId;
     let cancelled = false;
 
@@ -99,7 +116,9 @@ export default function MultiplayerSync({ enabled, playerName, playerPosRef, onS
 
       const unsubscribePlayers = onValue(roomPlayersRef, (snapshot) => {
         const rawPlayers = snapshot.val() ?? {};
-        const players = Object.values(rawPlayers).filter(Boolean);
+        const players = Object.entries(rawPlayers)
+          .map(([id, player]) => ({ id, ...(player ?? {}) }))
+          .filter((player) => Boolean(player?.id));
         onPlayers?.(players);
       });
       playersUnsubscribeRef.current = unsubscribePlayers;
