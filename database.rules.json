@@ -3,12 +3,14 @@
     "rooms": {
       "$roomId": {
         "players": {
+          ".read": true,
           "$playerId": {
             ".read": true,
             ".write": true
           }
         },
         "slots": {
+          ".read": true,
           "$slotIndex": {
             ".read": true,
             ".write": true
